@@ -1,9 +1,9 @@
 // ==UserScript==
-// @name         크랙 채팅 HTML 변환 (최종 안정판)
+// @name         html 테스트
 // @namespace    http://tampermonkey.net/
-// @version      5.0
-// @description  XSS 보안이 강화되고 모든 기능이 안정화된 최종 버전입니다.
-// @author       뤼붕이
+// @version      5.1
+// @description  채팅로그를 html로 변환
+// @author       뤼붕이 (도움: Gemini)
 // @match        https://crack.wrtn.ai/u/*/c/*
 // @grant        none
 // @license      MIT
@@ -17,7 +17,7 @@
     // ===================================================================================
 
     const HTML_STRUCTURE = `<header class="main-header"><div class="header-content-wrapper"><h1 id="viewer-title" title="클릭하여 제목 수정"></h1><button id="hamburger-menu-btn" class="action-btn" title="메뉴 열기">☰</button></div></header><main id="chat-log-container" class="chat-log-container"></main><footer class="site-footer"><p>© 2025. All rights reserved.</p></footer><div id="info-panel-overlay"></div><div id="info-panel"><div class="info-panel-header"><h2>대화 정보</h2><button id="info-panel-close-btn">×</button></div><div class="info-panel-tabs"><button class="tab-link active" data-tab="persona">프로필</button><button class="tab-link" data-tab="usernote">노트</button><button class="tab-link" data-tab="export">설정</button></div><div class="info-panel-body"><div id="persona-content" class="tab-content active"><div class="content-header"><h3 id="persona-name"></h3><button id="edit-persona-btn" class="panel-edit-btn">✏️</button></div><div id="persona-view-mode"><div id="persona-info" class="content-box"></div></div><div id="persona-edit-mode" hidden><textarea id="persona-textarea"></textarea><div class="edit-actions"><button id="save-persona-btn" class="panel-save-btn">저장</button><button id="cancel-persona-btn" class="panel-cancel-btn">취소</button></div></div></div><div id="usernote-content" class="tab-content"><div class="content-header"><h3>유저노트</h3><button id="edit-usernote-btn" class="panel-edit-btn">✏️</button></div><div id="usernote-view-mode"><div id="usernote-info" class="content-box"></div></div><div id="usernote-edit-mode" hidden><textarea id="usernote-textarea"></textarea><div class="edit-actions"><button id="save-usernote-btn" class="panel-save-btn">저장</button><button id="cancel-usernote-btn" class="panel-cancel-btn">취소</button></div></div></div><div id="export-content" class="tab-content"><a href="#" id="download-html-btn" class="panel-action-link">💾 HTML 로 저장</a><a href="#" id="download-json-btn" class="panel-action-link">📄 JSON 으로 저장</a><a href="#" id="download-txt-btn" class="panel-action-link">📄 TXT 로 저장</a></div></div></div><div id="toast-notification"><p class="toast-message"></p></div>`;
-    const VIEWER_CSS = `:root{--primary-color:#4A90E2;--background-color:#fff;--surface-color:#f5f7fa;--border-color:#eaecef;--text-primary-color:#212529;--text-secondary-color:#6c757d}*{box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;margin:0;background-color:var(--background-color);color:var(--text-primary-color);display:flex;flex-direction:column;min-height:100vh}.main-header{background-color:var(--surface-color);border-bottom:1px solid var(--border-color);padding:10px 15px;position:sticky;top:0;z-index:100}.header-content-wrapper{display:flex;justify-content:space-between;align-items:center;width:100%}.main-header h1{font-size:20px;margin:0;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-grow:1;text-align:center;padding:0 40px}.action-btn{background:0 0;border:none;font-size:24px;cursor:pointer;color:var(--text-primary-color);padding:8px}.chat-log-container{display:flex;flex-direction:column;gap:12px;padding:20px 15px;max-width:800px;width:100%;margin:0 auto;flex-grow:1}.message-bubble{padding:16px;border-radius:18px;max-width:95%;line-height:1.6;word-wrap:break-word}.message-bubble p{margin:0 0 14px 0!important}.message-bubble p:last-child{margin:0!important}.message-content{cursor:pointer;white-space:pre-wrap}.user-message{align-self:flex-end;background-color:#61605a;color:#fff;border-bottom-right-radius:4px}.user-message p span{color:#C7C5BD !important;}.assistant-message{align-self:flex-start;background-color:var(--surface-color);border:1px solid var(--border-color);color:var(--text-primary-color);border-bottom-left-radius:4px}.message-bubble.editing{width:100%;max-width:100%}.editable-textarea{display:block;width:100%;background:var(--background-color);border:1px solid var(--primary-color);border-radius:4px;font-family:inherit;font-size:1em;line-height:1.6;padding:8px;resize:vertical;outline:0}.edit-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:8px}.edit-actions button{background-color:var(--surface-color);border:1px solid var(--border-color);border-radius:6px;padding:4px 10px;cursor:pointer}.title-edit-input{width:70%;font-size:20px;font-weight:700;text-align:center;border:1px solid var(--primary-color);border-radius:5px;padding:5px;outline:0;background-color:var(--surface-color);color:var(--text-primary-color)}#info-panel,#info-panel-overlay{position:fixed;top:0;right:0;height:100%;transition:transform .3s ease-in-out,opacity .3s ease-in-out}#info-panel-overlay{width:100%;background-color:rgba(0,0,0,.5);z-index:999;opacity:0;pointer-events:none}#info-panel{width:90%;max-width:350px;background-color:var(--surface-color);z-index:1001;display:flex;flex-direction:column;box-shadow:-2px 0 10px rgba(0,0,0,.1);transform:translateX(100%)}#info-panel.is-open{transform:translateX(0)}#info-panel-overlay.is-open{opacity:1;pointer-events:auto}.info-panel-header{display:flex;justify-content:space-between;align-items:center;padding:0 20px;min-height:60px;border-bottom:1px solid var(--border-color);flex-shrink:0}#info-panel-close-btn{font-size:24px;background:0 0;border:none;cursor:pointer;color:var(--text-primary-color)}.info-panel-tabs{display:flex;border-bottom:1px solid var(--border-color);flex-shrink:0}.tab-link{flex:1;padding:12px;text-align:center;background:0 0;border:none;cursor:pointer;font-size:15px;border-bottom:3px solid transparent;color:var(--text-secondary-color)}.tab-link.active{font-weight:700;color:var(--primary-color);border-bottom-color:var(--primary-color)}.info-panel-body{padding:20px;overflow-y:auto;flex-grow:1;min-height:0}.tab-content{display:none}.tab-content.active{display:block}.content-box{background-color:var(--background-color);border:1px solid var(--border-color);padding:15px;border-radius:8px;white-space:pre-wrap;word-break:break-word;min-height:100px}.content-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}#persona-name,.content-header h3{margin:0;font-size:16px}.panel-edit-btn{font-size:18px;background:0 0;border:none;cursor:pointer;color:var(--text-primary-color)}#persona-edit-mode textarea,#usernote-edit-mode textarea{width:100%;min-height:150px;border:1px solid var(--primary-color);border-radius:8px;padding:10px;resize:vertical;background-color:var(--background-color);color:var(--text-primary-color)}#persona-edit-mode .edit-actions,#usernote-edit-mode .edit-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:10px}.panel-save-btn{padding:6px 12px;border-radius:6px;border:none;cursor:pointer;background-color:var(--primary-color)}.panel-cancel-btn{padding:6px 12px;border-radius:6px;border:none;cursor:pointer;background-color:#e0e0e0}.panel-action-link{display:block;padding:15px 20px;text-decoration:none;color:var(--text-primary-color);border-radius:8px;margin-bottom:10px;background-color:var(--background-color);transition:background-color .2s;border:1px solid var(--border-color)}.panel-action-link:hover{background-color:#e9ecef}.site-footer{text-align:center;padding:15px;font-size:12px;color:var(--text-secondary-color)}#toast-notification{position:fixed;bottom:-50px;left:50%;transform:translateX(-50%);background-color:rgba(0,0,0,.8);color:#fff;padding:12px 20px;border-radius:20px;z-index:2000;opacity:0;transition:opacity .3s,bottom .3s;pointer-events:none}#toast-notification.show{bottom:30px;opacity:1}table{border-collapse:collapse;width:100%;margin:1em 0;border:1px solid #c7c5bd}th,td{border:1px solid #c7c5bd;padding:8px;text-align:left}`;
+    const VIEWER_CSS = `:root{--primary-color:#4A90E2;--background-color:#fff;--surface-color:#f5f7fa;--border-color:#eaecef;--text-primary-color:#212529;--text-secondary-color:#6c757d}*{box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;margin:0;background-color:var(--background-color);color:var(--text-primary-color);display:flex;flex-direction:column;min-height:100vh}.main-header{background-color:var(--surface-color);border-bottom:1px solid var(--border-color);padding:10px 15px;position:sticky;top:0;z-index:100}.header-content-wrapper{display:flex;justify-content:space-between;align-items:center;width:100%}.main-header h1{font-size:20px;margin:0;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-grow:1;text-align:center;padding:0 40px}.action-btn{background:0 0;border:none;font-size:24px;cursor:pointer;color:var(--text-primary-color);padding:8px}.chat-log-container{display:flex;flex-direction:column;gap:12px;padding:20px 15px;max-width:800px;width:100%;margin:0 auto;flex-grow:1}.message-bubble{padding:16px;border-radius:18px;max-width:95%;line-height:1.6;word-wrap:break-word}.message-bubble p{margin:0 0 14px 0!important}.message-bubble p:last-child{margin:0!important}.message-content{cursor:pointer;white-space:pre-wrap}.user-message{align-self:flex-end;background-color:#61605a;color:#fff;border-bottom-right-radius:4px}.user-message p em{color:#C7C5BD !important;}.assistant-message{align-self:flex-start;background-color:var(--surface-color);border:1px solid var(--border-color);color:var(--text-primary-color);border-bottom-left-radius:4px}.message-bubble.editing{width:100%;max-width:100%}.editable-textarea{display:block;width:100%;background:var(--background-color);border:1px solid var(--primary-color);border-radius:4px;font-family:inherit;font-size:1em;line-height:1.6;padding:8px;resize:vertical;outline:0}.edit-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:8px}.edit-actions button{background-color:var(--surface-color);border:1px solid var(--border-color);border-radius:6px;padding:4px 10px;cursor:pointer}.title-edit-input{width:70%;font-size:20px;font-weight:700;text-align:center;border:1px solid var(--primary-color);border-radius:5px;padding:5px;outline:0;background-color:var(--surface-color);color:var(--text-primary-color)}#info-panel,#info-panel-overlay{position:fixed;top:0;right:0;height:100%;transition:transform .3s ease-in-out,opacity .3s ease-in-out}#info-panel-overlay{width:100%;background-color:rgba(0,0,0,.5);z-index:999;opacity:0;pointer-events:none}#info-panel{width:90%;max-width:350px;background-color:var(--surface-color);z-index:1001;display:flex;flex-direction:column;box-shadow:-2px 0 10px rgba(0,0,0,.1);transform:translateX(100%)}#info-panel.is-open{transform:translateX(0)}#info-panel-overlay.is-open{opacity:1;pointer-events:auto}.info-panel-header{display:flex;justify-content:space-between;align-items:center;padding:0 20px;min-height:60px;border-bottom:1px solid var(--border-color);flex-shrink:0}#info-panel-close-btn{font-size:24px;background:0 0;border:none;cursor:pointer;color:var(--text-primary-color)}.info-panel-tabs{display:flex;border-bottom:1px solid var(--border-color);flex-shrink:0}.tab-link{flex:1;padding:12px;text-align:center;background:0 0;border:none;cursor:pointer;font-size:15px;border-bottom:3px solid transparent;color:var(--text-secondary-color)}.tab-link.active{font-weight:700;color:var(--primary-color);border-bottom-color:var(--primary-color)}.info-panel-body{padding:20px;overflow-y:auto;flex-grow:1;min-height:0}.tab-content{display:none}.tab-content.active{display:block}.content-box{background-color:var(--background-color);border:1px solid var(--border-color);padding:15px;border-radius:8px;white-space:pre-wrap;word-break:break-word;min-height:100px}.content-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}#persona-name,.content-header h3{margin:0;font-size:16px}.panel-edit-btn{font-size:18px;background:0 0;border:none;cursor:pointer;color:var(--text-primary-color)}#persona-edit-mode textarea,#usernote-edit-mode textarea{width:100%;min-height:150px;border:1px solid var(--primary-color);border-radius:8px;padding:10px;resize:vertical;background-color:var(--background-color);color:var(--text-primary-color)}#persona-edit-mode .edit-actions,#usernote-edit-mode .edit-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:10px}.panel-save-btn{padding:6px 12px;border-radius:6px;border:none;cursor:pointer;background-color:var(--primary-color)}.panel-cancel-btn{padding:6px 12px;border-radius:6px;border:none;cursor:pointer;background-color:#e0e0e0}.panel-action-link{display:block;padding:15px 20px;text-decoration:none;color:var(--text-primary-color);border-radius:8px;margin-bottom:10px;background-color:var(--background-color);transition:background-color .2s;border:1px solid var(--border-color)}.panel-action-link:hover{background-color:#e9ecef}.site-footer{text-align:center;padding:15px;font-size:12px;color:var(--text-secondary-color)}#toast-notification{position:fixed;bottom:-50px;left:50%;transform:translateX(-50%);background-color:rgba(0,0,0,.8);color:#fff;padding:12px 20px;border-radius:20px;z-index:2000;opacity:0;transition:opacity .3s,bottom .3s;pointer-events:none}#toast-notification.show{bottom:30px;opacity:1}table{border-collapse:collapse;width:100%;margin:1em 0;border:1px solid #c7c5bd}th,td{border:1px solid #c7c5bd;padding:8px;text-align:left}`;
 
     const VIEWER_JS = function() {
         // --- 미니 보안 요원 ---
@@ -40,10 +40,10 @@
                 `<img src="${safeUrl(src)}" alt="${alt.replace(/"/g, '&quot;')}" style="max-width: 100%; border-radius: 8px;">`
             );
             htmlLine = htmlLine.replace(/\[(.*?)\]\((.*?)\)/g, (match, text, href) =>
-                `<a href="${safeUrl(href)}" target="_blank">${text}</a>`
+                `<a href="${safeUrl(href)}" target="_blank" rel="noopener noreferrer">${text}</a>`
             );
-            htmlLine = htmlLine.replace(/(\*\*\*|___|\*\*|__)(.+?)\1/g, '<strong style="font-weight: bold;">$2</strong>');
-            htmlLine = htmlLine.replace(/(\*|_)(.+?)\1/g, '<span>$2</span>');
+            htmlLine = htmlLine.replace(/(\*\*\*|___|\*\*|__)(.+?)\1/g, '<strong>$2</strong>');
+            htmlLine = htmlLine.replace(/(\*|_)(.+?)\1/g, '<em style="font-style:normal;color:#9a9a9a;">$2</em>');
             htmlLine = htmlLine.replace(/~~(.+?)~~/g, '<del>$1</del>');
             htmlLine = htmlLine.replace(/\^\^(.+?)\^\^/g, '<mark>$1</mark>');
             htmlLine = htmlLine.replace(/`(.+?)`/g, '<code style="font-weight: bold; background-color: rgba(0,0,0,0.05); padding: 2px 4px; border-radius: 4px;">$1</code>');
@@ -63,7 +63,7 @@
                     i++;
                     while (i < lines.length && !lines[i].trim().startsWith('```')) { codeLines.push(lines[i]); i++; }
                     const langHeader = lang ? `<div style="background-color: #4a4a4a; color: #e0e0e0; padding: 5px 10px; border-top-left-radius: 6px; border-top-right-radius: 6px;">${lang}</div>` : '';
-                    htmlBlocks.push(`<div style="background-color: #2d2d2d; border-radius: 6px; margin: 1em 0;">${langHeader}<pre style="margin: 0;"><code style="color:#f1f1f1; padding: 10px; display: block; white-space: pre-wrap; word-wrap: break-word;">${codeLines.join('\n').replace(/</g, '&lt;')}</code></pre></div>`);
+                    htmlBlocks.push(`<div style="background-color: #2d2d2d; border-radius: 6px; margin: 1em 0;">${langHeader}<pre style="margin: 0;"><code style="color:#f1f1f1; padding: 10px; display: block; white-space: pre-wrap; word-wrap: break-word;">${codeLines.join('\n').replace(/</g, '&lt;').replace(/>/g, "&gt;")}</code></pre></div>`);
                     continue;
                 }
                 if (line.includes('|') && i + 1 < lines.length && lines[i+1].includes('-')) {
@@ -128,7 +128,7 @@
                 bubble.dataset.content = message.content;
                 const viewContent = document.createElement('div');
                 viewContent.className = 'message-content';
-                viewContent.innerHTML = parseMarkdown(message.content.replace(/</g, "&lt;"));
+                viewContent.innerHTML = parseMarkdown(message.content.replace(/</g, "&lt;").replace(/>/g, "&gt;"));
                 const editContainer = document.createElement('div');
                 editContainer.style.display = 'none';
                 const editTextarea = document.createElement('textarea');
@@ -160,7 +160,7 @@
                 const exitEditMode = (save) => {
                     if (save) {
                         const newContent = editTextarea.value;
-                        viewContent.innerHTML = parseMarkdown(newContent.replace(/</g, "&lt;"));
+                        viewContent.innerHTML = parseMarkdown(newContent.replace(/</g, "&lt;").replace(/>/g, "&gt;"));
                         bubble.dataset.content = newContent;
                     } else {
                         editTextarea.value = bubble.dataset.content;
@@ -255,13 +255,13 @@
                 document.getElementById('download-html-btn').addEventListener('click', e => {
                     e.preventDefault();
                     const currentData = getCurrentDataFromDOM();
-                    const serializedData = JSON.stringify(currentData, null, 2).replace(/</g, '\\u003C');
+                    const serializedData = JSON.stringify(currentData, null, 2).replace(/</g, '\\u003C').replace(/>/g, '\\u003E');
                     const regeneratedHtml = `<!DOCTYPE html>
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0, minimum-scale=1.0">
-<title>${currentData.title.replace(/</g,"&lt;")}</title>
+<title>${currentData.title.replace(/</g,"&lt;").replace(/>/g, "&gt;")}</title>
 <style>${window.CSS_TEMPLATE}</style>
 </head>
 <body class="sticky-footer-layout">
@@ -300,7 +300,7 @@ ${window.HTML_TEMPLATE}
     // ===================================================================================
 
     function generateFullHtmlPage(chatData) {
-        const serializedData = JSON.stringify(chatData, null, 2).replace(/</g, '\\u003C');
+        const serializedData = JSON.stringify(chatData, null, 2).replace(/</g, '\\u003C').replace(/>/g, '\\u003E');
         const viewerJsString = `(${VIEWER_JS.toString()})();`;
 
         return `<!DOCTYPE html>
@@ -308,7 +308,7 @@ ${window.HTML_TEMPLATE}
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0, minimum-scale=1.0">
-    <title>${chatData.title.replace(/</g, '&lt;')}</title>
+    <title>${chatData.title.replace(/</g, '&lt;').replace(/>/g, "&gt;")}</title>
     <style>${VIEWER_CSS}</style>
 </head>
 <body class="sticky-footer-layout">
