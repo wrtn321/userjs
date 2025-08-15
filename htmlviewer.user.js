@@ -36,7 +36,7 @@
             let htmlLine = text;
             htmlLine = htmlLine.replace(/!\[(.*?)\]\((.*?)\)/g, (match, alt, src) => `<img src="${escapeHtml(safeUrl(src))}" alt="${escapeHtml(alt)}" style="max-width: 100%; border-radius: 8px;">`);
             htmlLine = htmlLine.replace(/(\*\*\*|___|\*\*|__)(.+?)\1/g, '<strong>$2</strong>');
-            htmlLine = htmlLine.replace(/(\*|_)(.+?)\1/g, '<em style="font-style:normal;color:#9a9a9a;">$2</em>');
+            htmlLine = htmlLine.replace(/(\*|_)(.+?)\1/g, '<em style="font-style:normal;color:#737373;">$2</em>');
             htmlLine = htmlLine.replace(/~~(.+?)~~/g, '<del>$1</del>');
             htmlLine = htmlLine.replace(/\^\^(.+?)\^\^/g, '<mark>$1</mark>');
             htmlLine = htmlLine.replace(/`(.+?)`/g, (match, code) => `<code style="font-weight: bold; background-color: rgba(0,0,0,0.05); padding: 2px 4px; border-radius: 4px;">${escapeHtml(code)}</code>`);
