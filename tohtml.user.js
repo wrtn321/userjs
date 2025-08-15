@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         html 테스트
+// @name         html 테스트 (보안 강화 버전)
 // @namespace    http://tampermonkey.net/
-// @version      5.1
-// @description  채팅로그를 html로 변환
+// @version      5.2
+// @description  채팅로그를 html로 변환 (XSS 보안 강화)
 // @author       뤼붕이 (도움: Gemini)
 // @match        https://crack.wrtn.ai/u/*/c/*
 // @grant        none
@@ -20,33 +20,51 @@
     const VIEWER_CSS = `:root{--primary-color:#4A90E2;--background-color:#fff;--surface-color:#f5f7fa;--border-color:#eaecef;--text-primary-color:#212529;--text-secondary-color:#6c757d}*{box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;margin:0;background-color:var(--background-color);color:var(--text-primary-color);display:flex;flex-direction:column;min-height:100vh}.main-header{background-color:var(--surface-color);border-bottom:1px solid var(--border-color);padding:10px 15px;position:sticky;top:0;z-index:100}.header-content-wrapper{display:flex;justify-content:space-between;align-items:center;width:100%}.main-header h1{font-size:20px;margin:0;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-grow:1;text-align:center;padding:0 40px}.action-btn{background:0 0;border:none;font-size:24px;cursor:pointer;color:var(--text-primary-color);padding:8px}.chat-log-container{display:flex;flex-direction:column;gap:12px;padding:20px 15px;max-width:800px;width:100%;margin:0 auto;flex-grow:1}.message-bubble{padding:16px;border-radius:18px;max-width:95%;line-height:1.6;word-wrap:break-word}.message-bubble p{margin:0 0 14px 0!important}.message-bubble p:last-child{margin:0!important}.message-content{cursor:pointer;white-space:pre-wrap}.user-message{align-self:flex-end;background-color:#61605a;color:#fff;border-bottom-right-radius:4px}.user-message p em{color:#C7C5BD !important;}.assistant-message{align-self:flex-start;background-color:var(--surface-color);border:1px solid var(--border-color);color:var(--text-primary-color);border-bottom-left-radius:4px}.message-bubble.editing{width:100%;max-width:100%}.editable-textarea{display:block;width:100%;background:var(--background-color);border:1px solid var(--primary-color);border-radius:4px;font-family:inherit;font-size:1em;line-height:1.6;padding:8px;resize:vertical;outline:0}.edit-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:8px}.edit-actions button{background-color:var(--surface-color);border:1px solid var(--border-color);border-radius:6px;padding:4px 10px;cursor:pointer}.title-edit-input{width:70%;font-size:20px;font-weight:700;text-align:center;border:1px solid var(--primary-color);border-radius:5px;padding:5px;outline:0;background-color:var(--surface-color);color:var(--text-primary-color)}#info-panel,#info-panel-overlay{position:fixed;top:0;right:0;height:100%;transition:transform .3s ease-in-out,opacity .3s ease-in-out}#info-panel-overlay{width:100%;background-color:rgba(0,0,0,.5);z-index:999;opacity:0;pointer-events:none}#info-panel{width:90%;max-width:350px;background-color:var(--surface-color);z-index:1001;display:flex;flex-direction:column;box-shadow:-2px 0 10px rgba(0,0,0,.1);transform:translateX(100%)}#info-panel.is-open{transform:translateX(0)}#info-panel-overlay.is-open{opacity:1;pointer-events:auto}.info-panel-header{display:flex;justify-content:space-between;align-items:center;padding:0 20px;min-height:60px;border-bottom:1px solid var(--border-color);flex-shrink:0}#info-panel-close-btn{font-size:24px;background:0 0;border:none;cursor:pointer;color:var(--text-primary-color)}.info-panel-tabs{display:flex;border-bottom:1px solid var(--border-color);flex-shrink:0}.tab-link{flex:1;padding:12px;text-align:center;background:0 0;border:none;cursor:pointer;font-size:15px;border-bottom:3px solid transparent;color:var(--text-secondary-color)}.tab-link.active{font-weight:700;color:var(--primary-color);border-bottom-color:var(--primary-color)}.info-panel-body{padding:20px;overflow-y:auto;flex-grow:1;min-height:0}.tab-content{display:none}.tab-content.active{display:block}.content-box{background-color:var(--background-color);border:1px solid var(--border-color);padding:15px;border-radius:8px;white-space:pre-wrap;word-break:break-word;min-height:100px}.content-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}#persona-name,.content-header h3{margin:0;font-size:16px}.panel-edit-btn{font-size:18px;background:0 0;border:none;cursor:pointer;color:var(--text-primary-color)}#persona-edit-mode textarea,#usernote-edit-mode textarea{width:100%;min-height:150px;border:1px solid var(--primary-color);border-radius:8px;padding:10px;resize:vertical;background-color:var(--background-color);color:var(--text-primary-color)}#persona-edit-mode .edit-actions,#usernote-edit-mode .edit-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:10px}.panel-save-btn{padding:6px 12px;border-radius:6px;border:none;cursor:pointer;background-color:var(--primary-color)}.panel-cancel-btn{padding:6px 12px;border-radius:6px;border:none;cursor:pointer;background-color:#e0e0e0}.panel-action-link{display:block;padding:15px 20px;text-decoration:none;color:var(--text-primary-color);border-radius:8px;margin-bottom:10px;background-color:var(--background-color);transition:background-color .2s;border:1px solid var(--border-color)}.panel-action-link:hover{background-color:#e9ecef}.site-footer{text-align:center;padding:15px;font-size:12px;color:var(--text-secondary-color)}#toast-notification{position:fixed;bottom:-50px;left:50%;transform:translateX(-50%);background-color:rgba(0,0,0,.8);color:#fff;padding:12px 20px;border-radius:20px;z-index:2000;opacity:0;transition:opacity .3s,bottom .3s;pointer-events:none}#toast-notification.show{bottom:30px;opacity:1}table{border-collapse:collapse;width:100%;margin:1em 0;border:1px solid #c7c5bd}th,td{border:1px solid #c7c5bd;padding:8px;text-align:left}`;
 
     const VIEWER_JS = function() {
+        // --- [보안 강화] 강력한 HTML 이스케이프 함수 ---
+        // 사용자가 입력한 텍스트를 HTML 컨텍스트에 안전하게 삽입하기 위해 특수 문자를 변환합니다.
+        // 이 함수는 XSS 공격을 방어하는 핵심적인 역할을 합니다.
+        function escapeHtml(unsafe) {
+            if (typeof unsafe !== 'string') return '';
+            return unsafe
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
         // --- 미니 보안 요원 ---
         function safeUrl(url) {
             try {
-                const parsedUrl = new URL(url, 'http://example.com');
+                // [보안 수정] URL 생성자(URL constructor)를 사용하여 프로토콜을 안전하게 검사합니다.
+                const parsedUrl = new URL(url, window.location.href);
                 if (['http:', 'https:'].includes(parsedUrl.protocol)) {
-                    return url.replace(/"/g, '&quot;'); // 혹시 모를 속성 탈출 방지
+                    return url; // 유효한 프로토콜이면 원본 URL 반환
                 }
             } catch (e) {
-                return '#invalid-url';
+                return '#invalid-url'; // 유효하지 않은 URL 형식일 경우
             }
+            // javascript:, data: 등 위험한 프로토콜 방지
             return '#unsafe-protocol';
         }
 
         // --- 마크다운 파서 ---
         function parseInlineMarkdown(text) {
             let htmlLine = text;
+            // [보안 수정] HTML 속성에 들어가는 모든 사용자 입력 값(alt, src, href)을 escapeHtml로 처리합니다.
             htmlLine = htmlLine.replace(/!\[(.*?)\]\((.*?)\)/g, (match, alt, src) =>
-                `<img src="${safeUrl(src)}" alt="${alt.replace(/"/g, '&quot;')}" style="max-width: 100%; border-radius: 8px;">`
+                `<img src="${escapeHtml(safeUrl(src))}" alt="${escapeHtml(alt)}" style="max-width: 100%; border-radius: 8px;">`
             );
+            /* 링크기능 쓰지말자
             htmlLine = htmlLine.replace(/\[(.*?)\]\((.*?)\)/g, (match, text, href) =>
-                `<a href="${safeUrl(href)}" target="_blank" rel="noopener noreferrer">${text}</a>`
-            );
+                `<a href="${escapeHtml(safeUrl(href))}" target="_blank" rel="noopener noreferrer">${text}</a>`
+            );*/
             htmlLine = htmlLine.replace(/(\*\*\*|___|\*\*|__)(.+?)\1/g, '<strong>$2</strong>');
             htmlLine = htmlLine.replace(/(\*|_)(.+?)\1/g, '<em style="font-style:normal;color:#9a9a9a;">$2</em>');
             htmlLine = htmlLine.replace(/~~(.+?)~~/g, '<del>$1</del>');
             htmlLine = htmlLine.replace(/\^\^(.+?)\^\^/g, '<mark>$1</mark>');
-            htmlLine = htmlLine.replace(/`(.+?)`/g, '<code style="font-weight: bold; background-color: rgba(0,0,0,0.05); padding: 2px 4px; border-radius: 4px;">$1</code>');
+            // [보안 수정] 인라인 코드 블록의 내용도 escapeHtml 처리하여 내부의 HTML 태그가 렌더링되지 않도록 합니다.
+            htmlLine = htmlLine.replace(/`(.+?)`/g, (match, code) => `<code style="font-weight: bold; background-color: rgba(0,0,0,0.05); padding: 2px 4px; border-radius: 4px;">${escapeHtml(code)}</code>`);
             return htmlLine;
         }
 
@@ -56,14 +74,14 @@
             const htmlBlocks = [];
             for (let i = 0; i < lines.length; i++) {
                 let line = lines[i];
-                // [수정] 인용문 기능 삭제
                 if (line.trim().startsWith('```')) {
                     const lang = line.trim().substring(3).trim();
                     const codeLines = [];
                     i++;
                     while (i < lines.length && !lines[i].trim().startsWith('```')) { codeLines.push(lines[i]); i++; }
-                    const langHeader = lang ? `<div style="background-color: #4a4a4a; color: #e0e0e0; padding: 5px 10px; border-top-left-radius: 6px; border-top-right-radius: 6px;">${lang}</div>` : '';
-                    htmlBlocks.push(`<div style="background-color: #2d2d2d; border-radius: 6px; margin: 1em 0;">${langHeader}<pre style="margin: 0;"><code style="color:#f1f1f1; padding: 10px; display: block; white-space: pre-wrap; word-wrap: break-word;">${codeLines.join('\n').replace(/</g, '&lt;').replace(/>/g, "&gt;")}</code></pre></div>`);
+                    const langHeader = lang ? `<div style="background-color: #4a4a4a; color: #e0e0e0; padding: 5px 10px; border-top-left-radius: 6px; border-top-right-radius: 6px;">${escapeHtml(lang)}</div>` : '';
+                    // [보안 수정] 코드 블록 전체 내용을 escapeHtml 처리합니다.
+                    htmlBlocks.push(`<div style="background-color: #2d2d2d; border-radius: 6px; margin: 1em 0;">${langHeader}<pre style="margin: 0;"><code style="color:#f1f1f1; padding: 10px; display: block; white-space: pre-wrap; word-wrap: break-word;">${escapeHtml(codeLines.join('\n'))}</code></pre></div>`);
                     continue;
                 }
                 if (line.includes('|') && i + 1 < lines.length && lines[i+1].includes('-')) {
@@ -86,7 +104,9 @@
                 }
                 if (/^(---|___|\*\*\*)$/.test(line.trim())) { htmlBlocks.push('<hr>'); continue; }
                 if (line.trim() !== '') {
-                    htmlBlocks.push(`<p>${parseInlineMarkdown(line)}</p>`);
+                    // [핵심 보안 수정] 일반 텍스트 라인에 대해서도 마크다운 파싱을 적용하기 전에 escape 처리를 합니다.
+                    // 이렇게 하면 마크다운 문법으로 인식되지 않는 모든 HTML 태그가 안전하게 텍스트로 표시됩니다.
+                    htmlBlocks.push(`<p>${parseInlineMarkdown(escapeHtml(line))}</p>`);
                 }
             }
             return htmlBlocks.join('');
@@ -128,7 +148,9 @@
                 bubble.dataset.content = message.content;
                 const viewContent = document.createElement('div');
                 viewContent.className = 'message-content';
-                viewContent.innerHTML = parseMarkdown(message.content.replace(/</g, "&lt;").replace(/>/g, "&gt;"));
+                // [보안 수정] message.content를 파서에 넘기기 전에 escape 하지 않습니다.
+                // 대신 파서 내부에서 컨텍스트에 맞게 escape를 수행하도록 로직을 변경했습니다.
+                viewContent.innerHTML = parseMarkdown(message.content);
                 const editContainer = document.createElement('div');
                 editContainer.style.display = 'none';
                 const editTextarea = document.createElement('textarea');
@@ -160,7 +182,8 @@
                 const exitEditMode = (save) => {
                     if (save) {
                         const newContent = editTextarea.value;
-                        viewContent.innerHTML = parseMarkdown(newContent.replace(/</g, "&lt;").replace(/>/g, "&gt;"));
+                        // [보안 수정] 수정된 내용도 동일한 보안 파서를 통해 렌더링합니다.
+                        viewContent.innerHTML = parseMarkdown(newContent);
                         bubble.dataset.content = newContent;
                     } else {
                         editTextarea.value = bubble.dataset.content;
@@ -261,7 +284,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0, minimum-scale=1.0">
-<title>${currentData.title.replace(/</g,"&lt;").replace(/>/g, "&gt;")}</title>
+<title>${escapeHtml(currentData.title)}</title>
 <style>${window.CSS_TEMPLATE}</style>
 </head>
 <body class="sticky-footer-layout">
@@ -300,6 +323,8 @@ ${window.HTML_TEMPLATE}
     // ===================================================================================
 
     function generateFullHtmlPage(chatData) {
+        // [보안 강화] 여기서도 escapeHtml을 사용하여 타이틀을 안전하게 처리합니다.
+        function escapeHtml(unsafe) { if (typeof unsafe !== 'string') return ''; return unsafe.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");}
         const serializedData = JSON.stringify(chatData, null, 2).replace(/</g, '\\u003C').replace(/>/g, '\\u003E');
         const viewerJsString = `(${VIEWER_JS.toString()})();`;
 
@@ -308,7 +333,7 @@ ${window.HTML_TEMPLATE}
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0, minimum-scale=1.0">
-    <title>${chatData.title.replace(/</g, '&lt;').replace(/>/g, "&gt;")}</title>
+    <title>${escapeHtml(chatData.title)}</title>
     <style>${VIEWER_CSS}</style>
 </head>
 <body class="sticky-footer-layout">
