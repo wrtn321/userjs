@@ -20,33 +20,18 @@
     function generateFullHtmlPage(chatData) {
         // --- 보안 및 마크다운 파싱 함수 (HTML 생성에 필수) ---
         function escapeHtml(unsafe) { if (typeof unsafe !== 'string') return ''; return unsafe.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;"); }
-
         function safeUrl(url) {
             if (typeof url !== 'string') return '#invalid-url';
-
             url = url.trim();
-
             const allowedProtocols = ['http:', 'https:'];
-
             let parsed;
-            try {
-                parsed = new URL(url, 'https://example.com');
-            } catch (e) {
-                return '#invalid-url';
-            }
-
+            try { parsed = new URL(url, 'https://example.com'); } catch (e) { return '#invalid-url'; }
             if (!allowedProtocols.includes(parsed.protocol)) return '#unsafe-protocol';
-
             if (/\s|[\u0000-\u001f]/.test(url)) return '#unsafe-protocol';
-
             const lower = url.toLowerCase();
-            if (lower.startsWith('javascript:') || lower.startsWith('vbscript:') || lower.startsWith('data:')) {
-                return '#unsafe-protocol';
-            }
-
+            if (lower.startsWith('javascript:') || lower.startsWith('vbscript:') || lower.startsWith('data:')) { return '#unsafe-protocol'; }
             return parsed.href;
         }
-
         function parseInlineMarkdown(text) {
             let htmlLine = text;
             htmlLine = htmlLine.replace(/!\[(.*?)\]\((.*?)\)/g, (match, alt, src) => `<img src="${escapeHtml(safeUrl(src))}" alt="${escapeHtml(alt)}" style="max-width: 100%; border-radius: 8px;">`);
@@ -99,8 +84,19 @@
         }
 
         const messagesHtml = chatData.messages.map(msg => {
-            const unsafeHtml = parseMarkdown(msg.content);
-            const safeHtml = DOMPurify.sanitize(unsafeHtml);
+            let safeHtml; // 최종적으로 안전하게 렌더링될 HTML을 담을 변수
+
+            // [비상 브레이크] DOMPurify가 정상적으로 로드되었는지 확인합니다.
+            if (typeof DOMPurify !== 'undefined') {
+                // (정상 작동) DOMPurify가 있다면, 마크다운 변환 후 소독합니다.
+                const unsafeHtml = parseMarkdown(msg.content);
+                safeHtml = DOMPurify.sanitize(unsafeHtml);
+            } else {
+                // (비상 계획 발동!) DOMPurify가 없다면, 마크다운을 무시하고 가장 안전한 순수 텍스트로만 표시합니다.
+                console.warn("DOMPurify is not loaded. Falling back to plain text rendering for safety.");
+                safeHtml = escapeHtml(msg.content).replace(/\n/g, '<br>');
+            }
+
             return `
                 <div class="message-bubble ${msg.role === 'user' ? 'user' : 'assistant'}-message">
                     ${safeHtml}
@@ -111,6 +107,7 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-5K7usE/QeSfTGnhk2PLCpuc5/vtm975xwy/ECgw8Vtw='; style-src 'unsafe-inline'; img-src https: data:; object-src 'none'; base-uri 'none'; form-action 'none';">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>${escapeHtml(chatData.title)}</title>
     <style>
