@@ -1,10 +1,10 @@
 // ==UserScript==
 // @name         크랙 html 저장
 // @namespace    http://tampermonkey.net/
-// @version      1.0
+// @version      1.1
 // @description  채팅로그를 읽기 전용 HTML로 저장합니다.
 // @author       뤼붕이
-// @match        https://crack.wrtn.ai/u/*/c/*
+// @match        https://crack.wrtn.ai/characters/*/chats/*
 // @grant        none
 // @require      https://cdn.jsdelivr.net/npm/dompurify@3.0.11/dist/purify.min.js
 // @license      MIT
@@ -182,7 +182,7 @@
     function waitForElement(selector) { return new Promise(resolve => { const i = setInterval(() => { const e = document.querySelector(selector); if (e) { clearInterval(i); resolve(e); } }, 100); }); }
     function getCookie(name) { const nameEQ = name + "="; const ca = document.cookie.split(';'); for(let i=0;i < ca.length;i++) { let c = ca[i]; while (c.charAt(0)==' ') c = c.substring(1,c.length); if (c.indexOf(nameEQ) == 0) return decodeURIComponent(c.substring(nameEQ.length,c.length)); } return null; }
     function downloadFile(content, filename, contentType) { const b = new Blob([content], { type: contentType }); const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = filename; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(a.href); }
-    function getUrlInfo() { const pathParts = window.location.pathname.split('/'); const cIndex = pathParts.indexOf('c'); if (cIndex > -1 && cIndex + 1 < pathParts.length) { return { chatroomId: pathParts[cIndex + 1] }; } return {}; }
+    function getUrlInfo() {const match = window.location.pathname.match(/\/characters\/[a-f0-9]+\/chats\/([a-f0-9]+)/); if (match && match[1]) {return { chatroomId: match[1] };}return {};}
     async function apiRequest(url, token) { const response = await fetch(url, { headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' } }); if (!response.ok) throw new Error(`API Error: ${response.status}`); return (await response.json()).data; }
     async function fetchAllChatData() {
         const token = getCookie('access_token');
