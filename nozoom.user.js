@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         Safari 입력창 확대 방지 (동적 사이트 지원)
+// @name         Safari 입력창 확대 방지
 // @namespace    http://tampermonkey.net/
 // @version      0.2
-// @description  Safari에서 입력창 포커스 시 강제 줌 되는 현상을 막습니다. 동적으로 콘텐츠가 변경되는 사이트(SPA)를 지원합니다.
+// @description  Safari에서 입력창 포커스 시 강제 줌 되는 현상을 막습니다.
 // @author       Your Name
 // @match        *://*/*
 // @grant        none
