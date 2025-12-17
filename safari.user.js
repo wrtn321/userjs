@@ -1,44 +1,85 @@
 // ==UserScript==
-// @name         Safari 입력창 확대 방지 (동적 사이트 지원)
+// @name         Safari 입력창 확대 방지 (최종 강화판)
 // @namespace    http://tampermonkey.net/
-// @version      0.2
-// @description  Safari에서 입력창 포커스 시 강제 줌 되는 현상을 막습니다. 동적으로 콘텐츠가 변경되는 사이트(SPA)를 지원합니다.
+// @version      0.3
+// @description  Viewport 조절 + 입력창 폰트 16px 강제 (모든 사이트 호환)
 // @author       Your Name
 // @match        *://*/*
 // @grant        none
+// @run-at       document-start
 // ==/UserScript==
 
 (function() {
     'use strict';
 
-    // 뷰포트(viewport) 메타 태그를 설정하여 확대 기능을 비활성화하는 함수
+    // 1. Viewport 메타 태그 강제 설정 (기존 로직)
     const forceViewport = () => {
         let viewport = document.querySelector("meta[name=viewport]");
-
-        // 뷰포트 메타 태그가 없으면 새로 생성
         if (!viewport) {
             viewport = document.createElement('meta');
             viewport.name = "viewport";
-            document.getElementsByTagName('head')[0].appendChild(viewport);
+            document.head.appendChild(viewport);
+        }
+        
+        // 기존 content 값을 가져옴
+        let content = viewport.getAttribute("content") || "";
+        
+        // 필요한 속성들이 없으면 추가하는 방식 (무조건 덮어쓰기보다 안전함)
+        let needsUpdate = false;
+        if (!content.includes("user-scalable=no")) {
+            content += ", user-scalable=no";
+            needsUpdate = true;
+        }
+        if (!content.includes("maximum-scale=1.0")) {
+            content += ", maximum-scale=1.0";
+            needsUpdate = true;
+        }
+        if (!content.includes("width=device-width")) {
+            content += ", width=device-width";
+            needsUpdate = true;
         }
 
-        // 확대/축소 관련 속성을 강제로 설정 (기존 값을 덮어쓰거나 추가)
-        const newContent = "width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no";
-
-        // 기존 content와 다를 경우에만 설정하여 불필요한 변경 방지
-        if (viewport.getAttribute("content") !== newContent) {
-            viewport.setAttribute("content", newContent);
+        if (needsUpdate) {
+            viewport.setAttribute("content", content);
         }
     };
 
-    // 1. 페이지 최초 로드 시 즉시 적용
-    forceViewport();
+    // 2. 입력창 폰트 사이즈 16px 강제 스타일 주입 (새로운 로직)
+    // iOS Safari는 16px 이상일 때 확대를 하지 않음.
+    const addGlobalStyle = () => {
+        const styleId = 'anti-zoom-style';
+        if (document.getElementById(styleId)) return;
 
-    // 2. 페이지 콘텐츠가 동적으로 변경될 때마다 뷰포트 설정을 다시 강제
-    // MutationObserver를 사용하여 DOM의 변경을 감시
-    new MutationObserver(forceViewport)
-        .observe(document.documentElement, {
-            childList: true, // 자식 노드의 추가/제거 감시
-            subtree: true    // 모든 하위 노드 감시
-        });
+        const css = `
+            input[type="text"], input[type="password"], input[type="search"], 
+            input[type="email"], input[type="number"], input[type="tel"], 
+            input[type="url"], textarea, select {
+                font-size: 16px !important; 
+            }
+        `;
+        
+        const style = document.createElement('style');
+        style.id = styleId;
+        style.type = 'text/css';
+        style.appendChild(document.createTextNode(css));
+        
+        // head가 없으면 html에라도 붙임
+        (document.head || document.documentElement).appendChild(style);
+    };
+
+    // 실행 로직
+    const run = () => {
+        forceViewport();
+        addGlobalStyle();
+    };
+
+    // 초기 실행
+    run();
+
+    // 동적 변화 감지
+    new MutationObserver(run).observe(document.documentElement, {
+        childList: true,
+        subtree: true
+    });
+
 })();
