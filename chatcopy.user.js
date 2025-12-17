@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         크랙 텍스트 복사 (Final - iOS 완벽 호환)
+// @name         crack text copy
 // @namespace    http://tampermonkey.net/
-// @version      11.0
-// @description  iOS 환경에서의 클립보드 복사 문제를 '2단계 복사' 방식으로 완벽하게 해결한 최종 버전입니다.
+// @version      1.0
+// @description  채팅로그를 지정한 프롬프트와 함께 복사
 // @author       뤼붕이
 // @match        https://crack.wrtn.ai/stories/*/episodes/*
 // @downloadURL  https://github.com/wrtn321/userjs/raw/refs/heads/main/chatcopy.user.js
@@ -31,7 +31,7 @@
     }
 
     // ===================================================================================
-    // PART 2: 텍스트 생성 및 복사 로직 (iOS 호환성 패치 적용)
+    // PART 2: 텍스트 생성 및 복사 로직
     // ===================================================================================
     function generateCustomFormatString(chatData, customPromptText) {
         let outputLines = [];
@@ -73,7 +73,7 @@
 
 
     // ===================================================================================
-    // PART 3: WRTN.AI API 연동 로직 (변경 없음)
+    // PART 3: WRTN.AI API 연동 로직
     // ===================================================================================
     const API_BASE = "https://contents-api.wrtn.ai";
     function waitForElement(s) { return new Promise(r => { const i = setInterval(() => { const e = document.querySelector(s); if (e) { clearInterval(i); r(e); } }, 100); }); }
@@ -143,7 +143,7 @@
         }
     }
 
-    // --- 나머지 UI 코드 (변경 없음) ---
+    // --- 나머지 UI 코드 ---
     function showSettingsModal() {
         if (document.getElementById("crack-copy-settings-modal")) return;
         let localConfig = ConfigManager.getConfig(); const isDark = document.body.dataset.theme === 'dark';
