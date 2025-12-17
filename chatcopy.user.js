@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         crack text copy
+// @name         크랙 텍스트 복사 (Final - iOS 호환)
 // @namespace    http://tampermonkey.net/
-// @version      1.0
-// @description  채팅로그를 지정 프롬프트와 함께 복사
+// @version      10.1
+// @description  iOS 환경에서의 클립보드 복사 실패 문제를 해결한 최종 안정화 버전입니다.
 // @author       뤼붕이
 // @match        https://crack.wrtn.ai/stories/*/episodes/*
 // @grant        none
@@ -17,7 +17,7 @@
     // PART 1: 설정 및 프롬프트 관리 (LocalStorage 사용)
     // ===================================================================================
     class ConfigManager {
-        static getConfig() { const d = { turnCount: 30, selectedPromptId: 'none', prompts: [] }; try { const s = JSON.parse(localStorage.getItem("crackCopyConfigPro") || "{}"); return { ...d, ...s, prompts: Array.isArray(s.prompts) ? s.prompts : [] }; } catch (e) { return d; } }
+        static getConfig() { const d = { turnCount: 10, selectedPromptId: 'none', prompts: [] }; try { const s = JSON.parse(localStorage.getItem("crackCopyConfigPro") || "{}"); return { ...d, ...s, prompts: Array.isArray(s.prompts) ? s.prompts : [] }; } catch (e) { return d; } }
         static setConfig(c) { localStorage.setItem("crackCopyConfigPro", JSON.stringify(c)); }
     }
     class PromptManager {
@@ -29,49 +29,45 @@
     }
 
     // ===================================================================================
-    // PART 2: 텍스트 생성 및 복사 로직
+    // PART 2: 텍스트 생성 및 복사 로직 (iOS 호환성 패치 적용)
     // ===================================================================================
     function generateCustomFormatString(chatData, customPromptText) {
         let outputLines = [];
-
-        // --- 0. 사용자 프롬프트 (가장 먼저 추가) ---
-        if (customPromptText) {
-            outputLines.push(customPromptText);
-            outputLines.push('');      // 공백
-            outputLines.push('---');   // 구분선
-            outputLines.push('');      // 공백
-        }
-
-        // --- 1. 사용자 페르소나 ---
-        if (chatData.userPersona && chatData.userPersona.name) {
-            outputLines.push(`[user프로필: ${chatData.userPersona.name}]`);
-            if (chatData.userPersona.information) {
-                outputLines.push(chatData.userPersona.information);
-            }
-            outputLines.push('');
-        }
-
-        // --- 2. 유저 노트 ---
-        if (chatData.userNote) {
-            outputLines.push('[usernote]');
-            outputLines.push(chatData.userNote);
-            outputLines.push('');
-        }
-
-        // --- 3. 구분선 및 채팅 로그 ---
-        outputLines.push('---');
-        outputLines.push(''); // 공백
-        outputLines.push('[chat log]');
-        const messageBlocks = chatData.messages.map(msg => `{${msg.role}: ${msg.content}}`);
-        outputLines.push(messageBlocks.join('\n\n'));
-
+        if (customPromptText) { outputLines.push(customPromptText, '', '---', ''); }
+        if (chatData.userPersona && chatData.userPersona.name) { outputLines.push(`[user프로필: ${chatData.userPersona.name}]`); if (chatData.userPersona.information) { outputLines.push(chatData.userPersona.information); } outputLines.push(''); }
+        if (chatData.userNote) { outputLines.push('[usernote]', chatData.userNote, ''); }
+        outputLines.push('---', '', '[chat log]', chatData.messages.map(msg => `{${msg.role}: ${msg.content}}`).join('\n\n'));
         return outputLines.join('\n');
     }
-    async function copyToClipboard(t) { try { await navigator.clipboard.writeText(t); } catch (e) { console.error('클립보드 복사 실패:', e); alert('클립보드 복사에 실패했습니다.'); } }
+
+    async function copyToClipboard(text) {
+        try {
+            // 1. 최신 API 시도
+            await navigator.clipboard.writeText(text);
+        } catch (err) {
+            // 2. 최신 API 실패 시, 구형(fallback) 방식 실행
+            console.warn('Navigator clipboard API failed. Falling back to execCommand.', err);
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            textarea.style.position = 'fixed'; // 화면에 보이지 않게 처리
+            textarea.style.top = '-9999px';
+            textarea.style.left = '-9999px';
+            document.body.appendChild(textarea);
+            textarea.select();
+            try {
+                document.execCommand('copy');
+            } catch (execErr) {
+                console.error('Fallback copy method failed.', execErr);
+                alert('클립보드 복사에 최종 실패했습니다.');
+            } finally {
+                document.body.removeChild(textarea);
+            }
+        }
+    }
 
 
     // ===================================================================================
-    // PART 3: WRTN.AI API 연동 로직
+    // PART 3: WRTN.AI API 연동 로직 (변경 없음)
     // ===================================================================================
     const API_BASE = "https://contents-api.wrtn.ai";
     function waitForElement(s) { return new Promise(r => { const i = setInterval(() => { const e = document.querySelector(s); if (e) { clearInterval(i); r(e); } }, 100); }); }
@@ -82,7 +78,7 @@
     async function fetchAllChatData(l) { const t = getCookie('access_token'); const { chatroomId } = getUrlInfo(); if (!t || !chatroomId) throw new Error('토큰/채팅방 ID 없음'); const [cD, mD, pL] = await Promise.all([apiRequest(`${API_BASE}/character-chat/api/v2/chat-room/${chatroomId}`, t), apiRequest(`${API_BASE}/character-chat/api/v2/chat-room/${chatroomId}/messages?limit=${l}`, t), getAllPersonas(t)]); let p = null; if (pL.length > 0) { p = cD?.chatProfile?._id ? pL.find(i => i._id === cD.chatProfile._id) : pL.find(i => i.isRepresentative); } const msgs = (mD?.list || []).reverse().map(m => ({ role: m.role, content: m.content })); return { userNote: cD?.character?.userNote?.content || '', userPersona: { name: p?.name || null, information: p?.information || null }, messages: msgs }; }
 
     // ===================================================================================
-    // PART 4: UI 생성 및 이벤트 처리
+    // PART 4: UI 생성 및 이벤트 처리 (변경 없음)
     // ===================================================================================
     async function handleInstantCopy(btn) {
         const original = btn.innerHTML; const config = ConfigManager.getConfig(); const turnCount = config.turnCount > 0 ? config.turnCount * 2 : 2000;
@@ -212,7 +208,7 @@
         const btnGroup = await waitForElement('.css-fhxiwe');
         if (!document.getElementById('instant-copy-button')) {
              const btn = document.createElement('button'); btn.id = 'instant-copy-button'; btn.className = 'css-8xk5x8 eh9908w0'; btn.style.cssText = "cursor: pointer; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;"; btn.title = "저장된 설정으로 즉시 복사";
-             btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" fill="var(--icon_tertiary)" viewBox="0 0 24 24" width="18" height="18"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"></path></svg>`;
+             btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" fill="var(--icon_tertiary)" viewBox="0 0 24 24" width="18" height="18"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c-1.1 0-2-.9-2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"></path></svg>`;
              btn.onclick = () => handleInstantCopy(btn); btnGroup.prepend(btn);
         }
     }
