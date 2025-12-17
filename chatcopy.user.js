@@ -1,10 +1,12 @@
 // ==UserScript==
-// @name         크랙 텍스트 복사 (Final - iOS 호환)
+// @name         크랙 텍스트 복사 (Final - iOS 완벽 호환)
 // @namespace    http://tampermonkey.net/
-// @version      10.1
-// @description  iOS 환경에서의 클립보드 복사 실패 문제를 해결한 최종 안정화 버전입니다.
+// @version      11.0
+// @description  iOS 환경에서의 클립보드 복사 문제를 '2단계 복사' 방식으로 완벽하게 해결한 최종 버전입니다.
 // @author       뤼붕이
 // @match        https://crack.wrtn.ai/stories/*/episodes/*
+// @downloadURL  https://github.com/wrtn321/userjs/raw/refs/heads/main/chatcopy.user.js
+// @updateURL    https://github.com/wrtn321/userjs/raw/refs/heads/main/chatcopy.user.js
 // @grant        none
 // @require      https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js
 // @license      MIT
@@ -40,25 +42,29 @@
         return outputLines.join('\n');
     }
 
-    async function copyToClipboard(text) {
+    async function copyToClipboard(text, successCallback, errorCallback) {
         try {
-            // 1. 최신 API 시도
             await navigator.clipboard.writeText(text);
+            if (successCallback) successCallback();
         } catch (err) {
-            // 2. 최신 API 실패 시, 구형(fallback) 방식 실행
             console.warn('Navigator clipboard API failed. Falling back to execCommand.', err);
             const textarea = document.createElement('textarea');
             textarea.value = text;
-            textarea.style.position = 'fixed'; // 화면에 보이지 않게 처리
+            textarea.style.position = 'fixed';
             textarea.style.top = '-9999px';
             textarea.style.left = '-9999px';
             document.body.appendChild(textarea);
             textarea.select();
+            textarea.setSelectionRange(0, 99999); // For mobile devices
             try {
-                document.execCommand('copy');
+                if(document.execCommand('copy')) {
+                    if (successCallback) successCallback();
+                } else {
+                   if (errorCallback) errorCallback();
+                }
             } catch (execErr) {
                 console.error('Fallback copy method failed.', execErr);
-                alert('클립보드 복사에 최종 실패했습니다.');
+                if (errorCallback) errorCallback();
             } finally {
                 document.body.removeChild(textarea);
             }
@@ -78,17 +84,66 @@
     async function fetchAllChatData(l) { const t = getCookie('access_token'); const { chatroomId } = getUrlInfo(); if (!t || !chatroomId) throw new Error('토큰/채팅방 ID 없음'); const [cD, mD, pL] = await Promise.all([apiRequest(`${API_BASE}/character-chat/api/v2/chat-room/${chatroomId}`, t), apiRequest(`${API_BASE}/character-chat/api/v2/chat-room/${chatroomId}/messages?limit=${l}`, t), getAllPersonas(t)]); let p = null; if (pL.length > 0) { p = cD?.chatProfile?._id ? pL.find(i => i._id === cD.chatProfile._id) : pL.find(i => i.isRepresentative); } const msgs = (mD?.list || []).reverse().map(m => ({ role: m.role, content: m.content })); return { userNote: cD?.character?.userNote?.content || '', userPersona: { name: p?.name || null, information: p?.information || null }, messages: msgs }; }
 
     // ===================================================================================
-    // PART 4: UI 생성 및 이벤트 처리 (변경 없음)
+    // PART 4: UI 생성 및 이벤트 처리 (2단계 복사 로직 적용)
     // ===================================================================================
+
+    // --- 2단계 복사를 위한 UI 생성 ---
+    function createCopyConfirmationUI(textToCopy, originalButton) {
+        if (document.getElementById('copy-confirmation-overlay')) return;
+
+        const overlay = document.createElement('div');
+        overlay.id = 'copy-confirmation-overlay';
+        overlay.style.cssText = 'position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:10000; display:flex; justify-content:center; align-items:center;';
+
+        const confirmButton = document.createElement('button');
+        confirmButton.textContent = '클립보드에 복사하기';
+        confirmButton.style.cssText = 'padding: 15px 30px; font-size: 16px; border-radius: 8px; border: none; background-color: #007aff; color: white; cursor: pointer;';
+
+        const closeUI = () => {
+            document.body.removeChild(overlay);
+            originalButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" fill="var(--icon_tertiary)" viewBox="0 0 24 24" width="18" height="18"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"></path></svg>`;
+            originalButton.disabled = false;
+        };
+
+        confirmButton.onclick = () => {
+            copyToClipboard(textToCopy,
+                () => { // Success
+                    confirmButton.textContent = '복사 완료!';
+                    confirmButton.style.backgroundColor = '#34c759';
+                    setTimeout(closeUI, 1000);
+                },
+                () => { // Error
+                    confirmButton.textContent = '복사 실패';
+                    confirmButton.style.backgroundColor = '#ff3b30';
+                    setTimeout(closeUI, 1500);
+                }
+            );
+        };
+
+        overlay.onclick = (e) => { if (e.target === overlay) closeUI(); }; // 배경 클릭 시 닫기
+        overlay.appendChild(confirmButton);
+        document.body.appendChild(overlay);
+    }
+
     async function handleInstantCopy(btn) {
         const original = btn.innerHTML; const config = ConfigManager.getConfig(); const turnCount = config.turnCount > 0 ? config.turnCount * 2 : 2000;
         try {
-            btn.innerHTML = '...'; btn.disabled = true; const p = config.prompts.find(i => i.id === config.selectedPromptId);
-            const chatData = await fetchAllChatData(turnCount); const str = generateCustomFormatString(chatData, p ? p.prompt : null);
-            await copyToClipboard(str); btn.innerHTML = '✓'; setTimeout(() => { btn.innerHTML = original; btn.disabled = false; }, 1500);
-        } catch (e) { console.error('즉시 복사 실패:', e); alert(`오류: ${e.message}`); btn.innerHTML = 'X'; setTimeout(() => { btn.innerHTML = original; btn.disabled = false; }, 2000); }
+            btn.innerHTML = '...'; btn.disabled = true;
+            const p = config.prompts.find(i => i.id === config.selectedPromptId);
+            const chatData = await fetchAllChatData(turnCount);
+            const str = generateCustomFormatString(chatData, p ? p.prompt : null);
+
+            // 복사 UI를 띄우는 것으로 변경
+            createCopyConfirmationUI(str, btn);
+
+        } catch (e) {
+            console.error('데이터 준비 실패:', e);
+            alert(`오류: ${e.message}`);
+            btn.innerHTML = original; btn.disabled = false;
+        }
     }
 
+    // --- 나머지 UI 코드 (변경 없음) ---
     function showSettingsModal() {
         if (document.getElementById("crack-copy-settings-modal")) return;
         let localConfig = ConfigManager.getConfig(); const isDark = document.body.dataset.theme === 'dark';
@@ -208,7 +263,7 @@
         const btnGroup = await waitForElement('.css-fhxiwe');
         if (!document.getElementById('instant-copy-button')) {
              const btn = document.createElement('button'); btn.id = 'instant-copy-button'; btn.className = 'css-8xk5x8 eh9908w0'; btn.style.cssText = "cursor: pointer; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;"; btn.title = "저장된 설정으로 즉시 복사";
-             btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" fill="var(--icon_tertiary)" viewBox="0 0 24 24" width="18" height="18"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c-1.1 0-2-.9-2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"></path></svg>`;
+             btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" fill="var(--icon_tertiary)" viewBox="0 0 24 24" width="18" height="18"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"></path></svg>`;
              btn.onclick = () => handleInstantCopy(btn); btnGroup.prepend(btn);
         }
     }
