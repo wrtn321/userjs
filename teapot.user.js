@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name         TeapotChat 확대 방지 (Iframe 지원)
+// @name         TeapotChat 확대 방지
 // @namespace    http://tampermonkey.net/
 // @version      1.0
 // @description  TeapotChat 사이트의 입력창 확대 현상을 방지합니다.
