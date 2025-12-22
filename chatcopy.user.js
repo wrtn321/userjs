@@ -5,6 +5,7 @@
 // @description  사용자 프롬프트와 함께 채팅로그를 복사
 // @author       뤼붕이
 // @match        https://crack.wrtn.ai/stories/*/episodes/*
+// @downloadURL    https://github.com/wrtn321/userjs/raw/refs/heads/main/chatcopy.user.js
 // @updateURL    https://github.com/wrtn321/userjs/raw/refs/heads/main/chatcopy.user.js
 // @grant        GM_xmlhttpRequest
 // @require      https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js
@@ -14,9 +15,6 @@
 (function() {
     'use strict';
 
-    // ===================================================================================
-    // PART 1: 설정 관리
-    // ===================================================================================
     class ConfigManager {
         static getConfig() { const d = { turnCount: 10, selectedPromptId: 'none', prompts: [] }; try { const s = JSON.parse(localStorage.getItem("crackCopyConfigPro") || "{}"); return { ...d, ...s, prompts: Array.isArray(s.prompts) ? s.prompts : [] }; } catch (e) { return d; } }
         static setConfig(c) { localStorage.setItem("crackCopyConfigPro", JSON.stringify(c)); }
@@ -29,9 +27,6 @@
         static delete(id) { const c = ConfigManager.getConfig(); if (c.selectedPromptId === id) c.selectedPromptId = 'none'; c.prompts = c.prompts.filter(p => p.id !== id); ConfigManager.setConfig(c); }
     }
 
-    // ===================================================================================
-    // PART 2: 텍스트 생성 및 복사
-    // ===================================================================================
     function generateCustomFormatString(chatData, customPromptText) {
         let outputLines = [];
         if (customPromptText) { outputLines.push(customPromptText, '', '---', ''); }
@@ -57,15 +52,8 @@
         }
     }
 
-    // ===================================================================================
-    // PART 3: API 연동 로직 (분석 결과 반영)
-    // ===================================================================================
     const API_BASE = "https://crack-api.wrtn.ai";
-
-    function getCookie(name) {
-        const value = `; ${document.cookie}`; const parts = value.split(`; ${name}=`);
-        if (parts.length === 2) return parts.pop().split(';').shift();
-    }
+    function getCookie(name) { const value = `; ${document.cookie}`; const parts = value.split(`; ${name}=`); if (parts.length === 2) return parts.pop().split(';').shift(); }
 
     function apiRequest(url, token) {
         const wrtnId = getCookie('__w_id');
@@ -83,50 +71,67 @@
         });
     }
 
-    function waitForElement(s) { return new Promise(r => { const i = setInterval(() => { const e = document.querySelector(s); if (e) { clearInterval(i); r(e); } }, 100); }); }
     function getUrlInfo() { const m = window.location.pathname.match(/\/stories\/([a-f0-9]+)\/episodes\/([a-f0-9]+)/); return m ? { chatroomId: m[2] } : {}; }
+
+    // 🔍 객체 내부를 낱낱이 뒤져서 페르소나 ID와 일치하는 값을 찾는 '지능형 스캐너'
+    function findProfileIdInObject(obj, targetIds) {
+        if (!obj || typeof obj !== 'object') return null;
+        const entries = Object.entries(obj);
+        for (const [key, value] of entries) {
+            if (targetIds.includes(value)) return value;
+            if (typeof value === 'object') {
+                const found = findProfileIdInObject(value, targetIds);
+                if (found) return found;
+            }
+        }
+        return null;
+    }
 
     async function fetchAllChatData(l) {
         const t = getCookie('access_token');
         const { chatroomId } = getUrlInfo();
         if (!t || !chatroomId) throw new Error('채팅방 정보를 읽을 수 없습니다.');
 
-        // 1. 채팅방 상세 정보 및 메시지 목록 가져오기
-        const [cD, mD] = await Promise.all([
+        // 1. 기본 데이터 호출
+        const [cD, mD, profileInfo] = await Promise.all([
             apiRequest(`${API_BASE}/crack-gen/v3/chats/${chatroomId}`, t),
-            apiRequest(`${API_BASE}/crack-gen/v3/chats/${chatroomId}/messages?limit=${l}`, t)
+            apiRequest(`${API_BASE}/crack-gen/v3/chats/${chatroomId}/messages?limit=${l}`, t),
+            apiRequest(`${API_BASE}/crack-api/profiles`, t)
         ]);
 
-        // 2. 유저노트 추출 (로그 분석 결과: data.story.userNote.content)
         const userNote = cD?.story?.userNote?.content || "";
+        const messages = (mD?.messages || []).reverse();
 
-        // 3. 페르소나 리스트 가져오기 (2단계: 프로필ID 확인 -> 상세 리스트 확인)
         let userPersona = { name: null, information: null };
         try {
-            const profileInfo = await apiRequest(`${API_BASE}/crack-api/profiles`, t);
-            if (profileInfo && profileInfo._id) {
-                const personaList = await apiRequest(`${API_BASE}/crack-api/profiles/${profileInfo._id}/chat-profiles`, t);
-                const list = personaList?.chatProfiles || [];
-                // 대표 페르소나 또는 첫 번째 페르소나 선택
-                const p = list.find(i => i.isRepresentative) || list[0];
+            if (profileInfo?._id) {
+                // 2. 모든 페르소나 리스트 가져오기
+                const personaRes = await apiRequest(`${API_BASE}/crack-api/profiles/${profileInfo._id}/chat-profiles`, t);
+                const list = personaRes?.chatProfiles || [];
+                const allIds = list.map(p => p._id);
+
+                // 3. 지능형 스캔 시작
+                // 1순위: 채팅방 데이터 전체에서 ID 스캔
+                // 2순위: 최근 메시지 데이터에서 ID 스캔
+                let activeId = findProfileIdInObject(cD, allIds) || findProfileIdInObject(mD, allIds);
+
+                // 4. 스캔 결과에 맞는 페르소나 선택
+                const p = list.find(i => i._id === activeId) || list.find(i => i.isRepresentative) || list[0];
                 if (p) {
                     userPersona = { name: p.name, information: p.information };
                 }
             }
-        } catch (e) { console.error("페르소나 로딩 실패:", e); }
+        } catch (e) { console.error("페르소나 분석 실패:", e); }
 
-        // 4. 메시지 가공 (data.messages 배열)
-        const messages = (mD?.messages || []).reverse().map(m => ({
+        const formattedMsgs = messages.map(m => ({
             role: m.role === 'assistant' ? 'assistant' : 'user',
             content: m.content
         }));
 
-        return { userNote, userPersona, messages };
+        return { userNote, userPersona, messages: formattedMsgs };
     }
 
-    // ===================================================================================
-    // PART 4: UI 로직
-    // ===================================================================================
+    // --- UI 파트 (기존과 동일) ---
     function createCopyConfirmationUI(textToCopy, originalButton) {
         if (document.getElementById('copy-confirmation-overlay')) return;
         const overlay = document.createElement('div');
@@ -149,10 +154,7 @@
             const chatData = await fetchAllChatData(turnCount);
             const str = generateCustomFormatString(chatData, p ? p.prompt : null);
             createCopyConfirmationUI(str, btn);
-        } catch (e) {
-            alert(`오류: ${e.message}`);
-            btn.innerHTML = original; btn.disabled = false;
-        }
+        } catch (e) { alert(`오류: ${e.message}`); btn.innerHTML = original; btn.disabled = false; }
     }
 
     function showSettingsModal() {
@@ -207,13 +209,13 @@
     }
 
     async function createButtons() {
-        const menuContainer = await waitForElement('.css-uxwch2');
+        const menuContainer = await (new Promise(r => { const i = setInterval(() => { const e = document.querySelector('.css-uxwch2'); if (e) { clearInterval(i); r(e); } }, 100); }));
         if (!document.getElementById('custom-copy-settings-button')) {
             const btn = document.createElement('div'); btn.id = 'custom-copy-settings-button'; btn.className = 'css-1dib65l'; btn.style.cssText = "display: flex; cursor: pointer; padding: 10px;";
             btn.innerHTML = `<p class="css-1xke5yy"><span style="padding-right: 6px;">📋</span>복사 설정</p>`;
             btn.onclick = showSettingsModal; menuContainer.appendChild(btn);
         }
-        const btnGroup = await waitForElement('.css-fhxiwe');
+        const btnGroup = await (new Promise(r => { const i = setInterval(() => { const e = document.querySelector('.css-fhxiwe'); if (e) { clearInterval(i); r(e); } }, 100); }));
         if (!document.getElementById('instant-copy-button')) {
              const btn = document.createElement('button'); btn.id = 'instant-copy-button'; btn.className = 'css-8xk5x8 eh9908w0'; btn.style.cssText = "cursor: pointer; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;"; btn.title = "저장된 설정으로 즉시 복사";
              btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" fill="var(--icon_tertiary)" viewBox="0 0 24 24" width="18" height="18"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"></path></svg>`;
