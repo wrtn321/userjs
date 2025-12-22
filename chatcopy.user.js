@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name         크랙 텍스트 복사
+// @name         crack text copy
 // @namespace    http://tampermonkey.net/
 // @version      2.0
 // @description  사용자 프롬프트와 함께 채팅로그를 복사
