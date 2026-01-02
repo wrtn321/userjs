@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         test
 // @namespace    http://tampermonkey.net/
-// @version      1.1
+// @version      1.2
 // @description  뤼튼 크랙의 채팅 로그를 선택하여 캡쳐
 // @author       뤼붕이
 // @match        https://crack.wrtn.ai/stories/*/episodes/*
@@ -36,7 +36,7 @@
             if (group.querySelector('.capture-checkbox-container')) return;
             const container = document.createElement('div');
             container.className = 'capture-checkbox-container';
-            container.style.cssText = 'display: flex; align-items: center; justify-content: center; z-index: 10;'; // cursor: pointer 제거
+            container.style.cssText = 'display: flex; align-items: center; justify-content: center; z-index: 10;';
             const checkbox = document.createElement('input');
             checkbox.type = 'checkbox';
             checkbox.className = 'capture-checkbox';
@@ -95,7 +95,6 @@
         renderReplaceList();
     }
 
-
     // ===================================================================================
     // PART 3: 캡쳐 로직
     // ===================================================================================
@@ -124,24 +123,24 @@
                 if (!clone.querySelector('.css-1ifxcjt, .css-1g2i6q3')) {
                     clone.style.marginBottom = '20px';
                 }
-
                 captureArea.appendChild(clone);
             });
 
-            // ==========================================================
-            // [수정된 부분] 코드 블럭 렌더링 오류 수정
-            // 캡쳐 전, 코드 블럭 내부의 모든 span 태그 색상을 강제로
-            // 부모 요소의 색상을 따르도록 변경하여 텍스트 누락 방지
-            captureArea.querySelectorAll('pre code span').forEach(span => {
+            // =====================================================================
+            // [수정된 부분 v1.2] 텍스트 렌더링 오류 수정
+            // 캡쳐 전, 색상이 적용된 모든 span 태그의 색상을 강제로
+            // 부모 요소의 색상을 따르도록 변경하여 텍스트 누락 현상을 방지합니다.
+            captureArea.querySelectorAll('span').forEach(span => {
                 span.style.color = 'inherit';
             });
-            // ==========================================================
+            // =====================================================================
 
             if (config.replaceWords.length > 0) { findTextNodes(captureArea).forEach(node => { let text = node.nodeValue; config.replaceWords.forEach(rule => { text = text.replaceAll(rule.find, rule.replace); }); node.nodeValue = text; }); }
             document.body.appendChild(captureArea);
             captureArea.style.position = 'absolute';
             captureArea.style.left = '-9999px';
             captureArea.style.top = '0px';
+
             const canvas = await html2canvas(captureArea, { useCORS: true, backgroundColor: bgColor, logging: false });
             document.body.removeChild(captureArea);
             downloadImage(canvas.toDataURL(`image/${config.imageFormat}`, 1.0), config.imageFormat);
