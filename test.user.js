@@ -1,10 +1,10 @@
 // ==UserScript==
 // @name         capture test
 // @namespace    http://tampermonkey.net/
-// @version      2.2
-// @description  뤼튼 크랙의 채팅 로그를 선택하여 캡쳐하고, 원하는 문장에 형광펜을 적용합니다. (아이폰 호환성 개선)
+// @version      2.3
+// @description  뤼튼 크랙의 채팅 로그를 선택하여 캡쳐하고, 원하는 문장에 형광펜을 적용합니다. (오버레이 엔진)
 // @author       뤼붕이 (with Gemini)
-// @match        https://crack.wrtn.ai/stories/*/
+// @match        https://crack.wrtn.ai/stories/*/episodes/*
 // @grant        GM_addStyle
 // @require      https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js
 // @license      MIT
@@ -12,9 +12,6 @@
 
 (function() {
     'use strict';
-
-    // [추가됨] 형광펜으로 칠할 텍스트를 임시로 저장하는 배열
-    let highlightSelections = [];
 
     // ===================================================================================
     // PART 1: 설정 관리 (변경 없음)
@@ -25,9 +22,9 @@
     }
 
     // ===================================================================================
-    // PART 2: UI 생성 및 관리 (변경 없음)
+    // PART 2: UI 생성 및 관리
     // ===================================================================================
-    function injectCheckboxes() {
+    function injectCheckboxes() { /* 이전과 동일 */
         document.querySelectorAll('div[data-message-group-id]').forEach(group => {
             if (group.querySelector('.capture-checkbox-container')) return;
             const container = document.createElement('div');
@@ -38,20 +35,12 @@
             checkbox.className = 'capture-checkbox';
             checkbox.style.cssText = 'width: 18px; height: 18px; cursor: pointer;';
             container.appendChild(checkbox);
-            if (group.querySelector('.css-1ifxcjt, .css-1g2i6q3')) {
-                 group.prepend(container);
-                 group.style.display = 'flex';
-            } else {
-                container.style.position = 'absolute';
-                container.style.right = '5px';
-                container.style.top = '10px';
-                group.style.position = 'relative';
-                group.appendChild(container);
-            }
+            if (group.querySelector('.css-1ifxcjt, .css-1g2i6q3')) { group.prepend(container); group.style.display = 'flex'; }
+            else { container.style.position = 'absolute'; container.style.right = '5px'; container.style.top = '10px'; group.style.position = 'relative'; group.appendChild(container); }
         });
     }
 
-    async function createButtons() {
+    async function createButtons() { /* 이전과 동일 */
         const menuContainer = await waitForElement('.css-uxwch2');
         if (menuContainer && !document.getElementById('capture-settings-button')) {
             const settingsBtn = document.createElement('div');
@@ -69,9 +58,9 @@
                 highlightBtn.id = 'highlight-action-button';
                 highlightBtn.className = 'css-8xk5x8 eh9908w0';
                 highlightBtn.style.cssText = "cursor: pointer; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;";
-                highlightBtn.title = "선택한 텍스트를 형광펜으로 표시 (캡쳐 시 적용)";
+                highlightBtn.title = "선택한 텍스트에 형광펜 적용";
                 highlightBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" fill="var(--icon_tertiary)" viewBox="0 0 24 24" width="18" height="18"><path d="M16.2 2.8c.8 0 1.5.3 2.1.9s.9 1.3.9 2.1-.3 1.5-.9 2.1L10 16.2l-4.2-.1.1-4.3L14.1 3.5c.6-.6 1.3-.8 2.1-.7zM4 20h16v-2H4v2z"></path></svg>`;
-                highlightBtn.onclick = rememberHighlightSelection; // [수정됨]
+                highlightBtn.onclick = applyHighlightOverlay;
                 chatInputArea.prepend(highlightBtn);
             }
             if (!document.getElementById('capture-action-button')) {
@@ -105,37 +94,65 @@
 
 
     // ===================================================================================
-    // PART 3: 캡쳐 및 형광펜 로직
+    // PART 3: 캡쳐 및 형광펜 로직 (오버레이 방식으로 완전히 재작성)
     // ===================================================================================
 
-    // [수정됨] 이제 이 함수는 실시간으로 스타일을 적용하지 않으므로, 이름에 맞게 캡쳐 영역에만 스타일을 주입합니다.
-    function getHighlighterStyleTag() {
+    // [추가됨] 형광펜 오버레이를 담을 컨테이너를 생성하고 관리하는 함수
+    function getHighlightContainer() {
+        let container = document.getElementById('_ccc-highlight-container');
+        if (!container) {
+            container = document.createElement('div');
+            container.id = '_ccc-highlight-container';
+            // 컨테이너 스타일: 화면 전체를 덮지만 상호작용은 막지 않음
+            container.style.cssText = 'position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 5; pointer-events: none;';
+            const chatArea = document.querySelector('.css-18d9jqd, .css-alg45');
+            if(chatArea) {
+                chatArea.style.position = 'relative'; // 기준점 설정
+                chatArea.appendChild(container);
+            }
+        }
+        return container;
+    }
+
+    // [추가됨] 오버레이 방식으로 형광펜을 적용하는 함수
+    function applyHighlightOverlay() {
+        const selection = window.getSelection();
+        if (!selection.rangeCount || selection.isCollapsed) return;
+
+        const range = selection.getRangeAt(0);
+        const rects = range.getClientRects(); // 선택된 텍스트의 모든 사각형 좌표를 가져옴
+        const container = getHighlightContainer();
+        const containerRect = container.parentElement.getBoundingClientRect(); // 기준 컨테이너의 좌표
+        const scrollTop = container.parentElement.scrollTop; // 스크롤된 높이
+
         const config = ConfigManager.getConfig();
         const color = config.highlighterColor;
         const r = parseInt(color.slice(1, 3), 16), g = parseInt(color.slice(3, 5), 16), b = parseInt(color.slice(5, 7), 16);
         const rgbaColor = `rgba(${r}, ${g}, ${b}, ${config.highlighterOpacity})`;
-        return `<style>._ccc-highlighter { background-color: ${rgbaColor}; padding: 0.1em 0; }</style>`;
-    }
 
-    // [수정됨] 이제 이 함수는 선택된 텍스트를 배열에 '기억'하기만 합니다.
-    function rememberHighlightSelection() {
-        const selection = window.getSelection();
-        if (!selection.rangeCount || selection.isCollapsed) return;
-        const selectedText = selection.toString().trim();
-        if (!selectedText) return;
-
-        const index = highlightSelections.indexOf(selectedText);
-        if (index > -1) {
-            highlightSelections.splice(index, 1);
-            alert(`[${selectedText}] 형광펜 표시가 취소되었습니다.`);
-        } else {
-            highlightSelections.push(selectedText);
-            alert(`[${selectedText}] 형광펜으로 표시됩니다. (캡쳐 시 적용)`);
+        for (const rect of rects) {
+            const mark = document.createElement('div');
+            mark.className = '_ccc-highlighter-overlay';
+            mark.style.cssText = `
+                position: absolute;
+                top: ${rect.top - containerRect.top + scrollTop}px;
+                left: ${rect.left - containerRect.left}px;
+                width: ${rect.width}px;
+                height: ${rect.height}px;
+                background-color: ${rgbaColor};
+                pointer-events: auto; /* 형광펜 자체는 클릭 가능하도록 */
+                cursor: pointer;
+                z-index: 1;
+            `;
+            // 형광펜을 클릭(터치)하면 제거
+            mark.addEventListener('click', () => mark.remove());
+            mark.addEventListener('touchend', () => mark.remove());
+            container.appendChild(mark);
         }
         selection.removeAllRanges();
     }
 
-    // [수정됨] 캡쳐 로직에 '기억된' 형광펜을 적용하는 부분이 추가되었습니다.
+
     async function handleCapture() {
         const allMessages = Array.from(document.querySelectorAll('div[data-message-group-id]'));
         const selectedMessages = allMessages.filter(msg => msg.querySelector('.capture-checkbox:checked'));
@@ -145,14 +162,19 @@
         btn.innerHTML = '...';
         btn.disabled = true;
 
+        // 캡쳐 전에 스크롤을 맨 위로 이동시켜 html2canvas의 좌표 오류 가능성을 줄임
+        const chatContainer = document.querySelector('.css-18d9jqd, .css-alg45');
+        const originalScrollTop = chatContainer ? chatContainer.scrollTop : 0;
+        if (chatContainer) chatContainer.scrollTop = 0;
+
+        // 잠시 대기하여 스크롤 이동이 렌더링에 반영되도록 함
+        await new Promise(resolve => setTimeout(resolve, 100));
+
         try {
             const config = ConfigManager.getConfig();
             const captureArea = document.createElement('div');
-            // [추가됨] 캡쳐 영역에 형광펜 스타일을 삽입합니다.
-            captureArea.innerHTML = getHighlighterStyleTag();
             captureArea.style.padding = '20px';
             captureArea.style.boxSizing = 'border-box';
-            const chatContainer = document.querySelector('.css-18d9jqd > div:first-child, .css-alg45 > div:first-child');
             if (chatContainer) captureArea.style.width = `${chatContainer.clientWidth}px`;
             const bgColor = window.getComputedStyle(document.body).backgroundColor;
             captureArea.style.backgroundColor = bgColor;
@@ -163,21 +185,20 @@
                 if (!clone.querySelector('.css-1ifxcjt, .css-1g2i6q3')) {
                     clone.style.marginBottom = '16px';
                 }
-
-                // [추가됨] 기억된 텍스트를 찾아 형광펜 태그로 감쌉니다.
-                if (highlightSelections.length > 0) {
-                    let content = clone.innerHTML;
-                    highlightSelections.forEach(text => {
-                        // HTML 태그를 손상시키지 않기 위해, > 와 < 사이의 텍스트만 대상으로 합니다.
-                        // 이 방식이 완벽하진 않지만 대부분의 경우에서 잘 작동합니다.
-                        const regex = new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
-                        content = content.replace(regex, `<mark class="_ccc-highlighter">${text}</mark>`);
-                    });
-                    clone.innerHTML = content;
-                }
-
                 captureArea.appendChild(clone);
             });
+
+            // [수정됨] 화면에 보이는 형광펜 오버레이를 복제하여 캡쳐 영역에 추가
+            const highlightContainer = document.getElementById('_ccc-highlight-container');
+            if (highlightContainer) {
+                const highlightClone = highlightContainer.cloneNode(true);
+                highlightClone.style.position = 'absolute';
+                highlightClone.style.top = '20px'; // captureArea의 padding 값
+                highlightClone.style.left = '20px'; // captureArea의 padding 값
+                highlightClone.style.pointerEvents = 'none';
+                captureArea.style.position = 'relative'; // 복제된 형광펜의 기준점
+                captureArea.appendChild(highlightClone);
+            }
 
             if (config.replaceWords.length > 0) { findTextNodes(captureArea).forEach(node => { let text = node.nodeValue; config.replaceWords.forEach(rule => { text = text.replaceAll(rule.find, rule.replace); }); node.nodeValue = text; }); }
 
@@ -186,14 +207,28 @@
             captureArea.style.left = '-9999px';
             captureArea.style.top = '0px';
 
-            const canvas = await html2canvas(captureArea, { useCORS: true, backgroundColor: bgColor, logging: false });
+            const canvas = await html2canvas(captureArea, {
+                useCORS: true,
+                backgroundColor: bgColor,
+                logging: false,
+                // 스크롤 관련 옵션 추가
+                scrollX: 0,
+                scrollY: -window.scrollY
+            });
+
             document.body.removeChild(captureArea);
             downloadImage(canvas.toDataURL(`image/${config.imageFormat}`, 1.0), config.imageFormat);
 
-            // [추가됨] 캡쳐가 끝나면 기억했던 형광펜 목록을 초기화합니다.
-            highlightSelections = [];
+            // [추가됨] 캡쳐 후 모든 형광펜 오버레이 제거
+            if (highlightContainer) highlightContainer.innerHTML = '';
 
-        } catch (error) { console.error('캡쳐 중 오류 발생:', error); alert('캡쳐에 실패했습니다. 콘솔을 확인해주세요.'); } finally { btn.innerHTML = originalContent; btn.disabled = false; }
+        } catch (error) { console.error('캡쳐 중 오류 발생:', error); alert('캡쳐에 실패했습니다. 콘솔을 확인해주세요.'); }
+        finally {
+            btn.innerHTML = originalContent;
+            btn.disabled = false;
+            // 캡쳐 후 원래 스크롤 위치로 복원
+            if (chatContainer) chatContainer.scrollTop = originalScrollTop;
+        }
     }
 
     function downloadImage(dataUrl, format) { /* 이전과 동일 */
@@ -223,7 +258,7 @@
     // PART 4: 스크립트 실행 및 보조 함수
     // ===================================================================================
     function waitForElement(selector) { return new Promise(resolve => { const interval = setInterval(() => { const element = document.querySelector(selector); if (element) { clearInterval(interval); resolve(element); } }, 100); }); }
-    const observer = new MutationObserver(() => { if (!document.getElementById('capture-settings-button') || !document.getElementById('capture-action-button') || !document.getElementById('highlight-action-button')) { createButtons(); } injectCheckboxes(); });
-    waitForElement('.css-18d9jqd, .css-alg45').then(chatArea => { observer.observe(chatArea, { childList: true, subtree: true }); createButtons(); injectCheckboxes(); });
+    const observer = new MutationObserver(() => { if (!document.getElementById('capture-settings-button') || !document.getElementById('capture-action-button') || !document.getElementById('highlight-action-button')) { createButtons(); } injectCheckboxes(); getHighlightContainer(); /* 채팅창이 동적으로 변할 때 컨테이너가 유지되도록 */ });
+    waitForElement('.css-18d9jqd, .css-alg45').then(chatArea => { getHighlightContainer(); observer.observe(chatArea, { childList: true, subtree: true }); createButtons(); injectCheckboxes(); });
 
 })();
