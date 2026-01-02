@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         capture test
+// @name         crack chat capture
 // @namespace    http://tampermonkey.net/
-// @version      2.0
-// @description  뤼튼 크랙의 채팅 로그를 선택하여 캡쳐하고, 원하는 문장에 형광펜을 적용합니다.
+// @version      1.0
+// @description  뤼튼 크랙의 채팅 로그를 선택하여 캡쳐
 // @author       뤼붕이
 // @match        https://crack.wrtn.ai/stories/*/episodes/*
 // @downloadURL    https://github.com/wrtn321/userjs/raw/refs/heads/main/chatcapture.user.js
@@ -10,7 +10,7 @@
 // @grant        GM_addStyle
 // @require      https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js
 // @license      MIT
-// ==UserScript==
+// ==/UserScript==
 
 (function() {
     'use strict';
