@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         test
 // @namespace    http://tampermonkey.net/
-// @version      1.2
-// @description  뤼튼 크랙의 채팅 로그를 선택하여 캡쳐
+// @version      1.3
+// @description  뤼튼 크랙의 채팅 로그를 선택하여 캡쳐 (형광펜 기능 추가)
 // @author       뤼붕이
 // @match        https://crack.wrtn.ai/stories/*/episodes/*
 // @grant        GM_addStyle
@@ -18,7 +18,8 @@
     // ===================================================================================
     class ConfigManager {
         static getConfig() {
-            const defaultConfig = { imageFormat: 'png', fileName: '캡쳐_{date}', replaceWords: [] };
+            // [수정] 형광펜 색상 기본값 추가
+            const defaultConfig = { imageFormat: 'png', fileName: '캡쳐_{date}', replaceWords: [], highlighterColor: '#FFD700' };
             try {
                 const storedConfig = JSON.parse(localStorage.getItem("crackCaptureConfigV3") || "{}");
                 if (!Array.isArray(storedConfig.replaceWords)) storedConfig.replaceWords = [];
@@ -57,6 +58,7 @@
     }
 
     async function createButtons() {
+        // 설정 버튼
         const menuContainer = await waitForElement('.css-uxwch2');
         if (menuContainer && !document.getElementById('capture-settings-button')) {
             const settingsBtn = document.createElement('div');
@@ -67,16 +69,45 @@
             settingsBtn.onclick = showSettingsModal;
             menuContainer.appendChild(settingsBtn);
         }
+
+        // 하단 액션 버튼 영역
         const chatInputArea = await waitForElement('.css-fhxiwe');
-        if (chatInputArea && !document.getElementById('capture-action-button')) {
-            const captureBtn = document.createElement('button');
-            captureBtn.id = 'capture-action-button';
-            captureBtn.className = 'css-8xk5x8 eh9908w0';
-            captureBtn.style.cssText = "cursor: pointer; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;";
-            captureBtn.title = "선택한 대화 캡쳐";
-            captureBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" fill="var(--icon_tertiary)" viewBox="0 0 24 24" width="18" height="18"><path d="M9.4 11.3h5.2v-1.6H9.4zM22 6.3v13.4c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6.3c0-1.1.9-2 2-2h3l2-2h6l2 2h3c1.1 0 2 .9 2 2zM12 18.3c2.8 0 5-2.2 5-5s-2.2-5-5-5-5 2.2-5 5 2.2 5 5 5zm0-8.4c1.9 0 3.4 1.5 3.4 3.4s-1.5 3.4-3.4 3.4S8.6 15 8.6 13s1.5-3.1 3.4-3.1z"></path></svg>`;
-            captureBtn.onclick = handleCapture;
-            chatInputArea.prepend(captureBtn);
+        if (chatInputArea) {
+             // 캡쳐 버튼
+            if (!document.getElementById('capture-action-button')) {
+                const captureBtn = document.createElement('button');
+                captureBtn.id = 'capture-action-button';
+                captureBtn.className = 'css-8xk5x8 eh9908w0';
+                captureBtn.style.cssText = "cursor: pointer; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;";
+                captureBtn.title = "선택한 대화 캡쳐";
+                captureBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" fill="var(--icon_tertiary)" viewBox="0 0 24 24" width="18" height="18"><path d="M9.4 11.3h5.2v-1.6H9.4zM22 6.3v13.4c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6.3c0-1.1.9-2 2-2h3l2-2h6l2 2h3c1.1 0 2 .9 2 2zM12 18.3c2.8 0 5-2.2 5-5s-2.2-5-5-5-5 2.2-5 5 2.2 5 5 5zm0-8.4c1.9 0 3.4 1.5 3.4 3.4s-1.5 3.4-3.4 3.4S8.6 15 8.6 13s1.5-3.1 3.4-3.1z"></path></svg>`;
+                captureBtn.onclick = handleCapture;
+                chatInputArea.prepend(captureBtn);
+            }
+
+            // [추가] 형광펜 모두 지우기 버튼
+            if (!document.getElementById('clear-highlight-button')) {
+                const clearBtn = document.createElement('button');
+                clearBtn.id = 'clear-highlight-button';
+                clearBtn.className = 'css-8xk5x8 eh9908w0';
+                clearBtn.style.cssText = "cursor: pointer; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;";
+                clearBtn.title = "모든 형광펜 지우기";
+                clearBtn.innerHTML = `🗑️`;
+                clearBtn.onclick = clearHighlights;
+                chatInputArea.prepend(clearBtn);
+            }
+
+            // [추가] 형광펜 적용 버튼
+            if (!document.getElementById('apply-highlight-button')) {
+                const highlightBtn = document.createElement('button');
+                highlightBtn.id = 'apply-highlight-button';
+                highlightBtn.className = 'css-8xk5x8 eh9908w0';
+                highlightBtn.style.cssText = "cursor: pointer; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;";
+                highlightBtn.title = "선택한 텍스트에 형광펜 적용";
+                highlightBtn.innerHTML = `🖌️`;
+                highlightBtn.onclick = applyHighlight;
+                chatInputArea.prepend(highlightBtn);
+            }
         }
     }
 
@@ -85,19 +116,68 @@
         let localConfig = ConfigManager.getConfig();
         const isDark = document.body.dataset.theme === 'dark';
         const c = { bg: isDark ? '#2c2c2e' : '#ffffff', text: isDark ? '#e0e0e0' : '#333333', border: isDark ? '#444444' : '#cccccc', inputBg: isDark ? '#3a3a3c' : '#f0f0f0', btn: isDark ? '#0a84ff' : '#007aff', delBtn: isDark ? '#ff453a' : '#ff3b30', btnTxt: '#ffffff' };
-        const modalHTML = `<div id="capture-settings-modal" style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:9999;display:flex;justify-content:center;align-items:center;"><div style="background:${c.bg};color:${c.text};padding:24px;border-radius:12px;width:90%;max-width:600px;display:flex;flex-direction:column;gap:20px;max-height: 90vh;"><div style="display:flex;justify-content:space-between;align-items:center;"><h2 style="margin:0;font-size:1.4em;font-weight:600;">📸 캡쳐 설정</h2><button id="capture-modal-close" style="background:none;border:none;color:${c.text};font-size:1.5em;cursor:pointer;">&times;</button></div><div style="display:flex; gap: 10px; flex-wrap: wrap;"><div style="flex: 1 1 200px;"><label style="display:block; margin-bottom: 8px;">파일 이름:</label><input id="capture-filename" type="text" value="${localConfig.fileName}" style="width:100%;padding:10px;border:1px solid ${c.border};border-radius:6px;background:${c.inputBg};color:${c.text};box-sizing: border-box;"></div><div style="flex: 1 1 200px;"><label style="display:block; margin-bottom: 8px;">이미지 형식:</label><select id="capture-format" style="width:100%;padding:10px;border:1px solid ${c.border};border-radius:6px;background:${c.inputBg};color:${c.text};box-sizing: border-box;"><option value="png" ${localConfig.imageFormat === 'png' ? 'selected' : ''}>PNG</option><option value="jpeg" ${localConfig.imageFormat === 'jpeg' ? 'selected' : ''}>JPG</option><option value="webp" ${localConfig.imageFormat === 'webp' ? 'selected' : ''}>WEBP</option></select></div></div><div><label style="display:block; margin-bottom: 8px;">단어 변환 규칙:</label><div id="replace-list" style="max-height: 150px; overflow-y: auto; border: 1px solid ${c.border}; border-radius: 6px; padding: 10px; margin-bottom: 10px;"></div><div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;"><input id="find-word" type="text" placeholder="원본 단어" style="flex:1 1 120px; padding:10px; border:1px solid ${c.border}; border-radius:6px; background:${c.inputBg}; color:${c.text}; box-sizing: border-box;"><span style="font-size: 1.2em;">→</span><input id="replace-word" type="text" placeholder="변환할 단어" style="flex:1 1 120px; padding:10px; border:1px solid ${c.border}; border-radius:6px; background:${c.inputBg}; color:${c.text}; box-sizing: border-box;"><button id="add-replace-rule" style="padding:10px; background:${c.btn}; color:${c.btnTxt}; border:none; border-radius:6px; cursor:pointer; min-width: 40px;">+</button></div></div><div style="text-align: right; border-top: 1px solid ${c.border}; padding-top: 20px;"><button id="capture-modal-save" style="padding:10px 20px;background:${c.btn};color:${c.btnTxt};border:none;border-radius:8px;cursor:pointer;font-size:1em;">저장</button></div></div></div>`;
+        // [수정] 설정 모달에 형광펜 색상 선택 추가
+        const modalHTML = `<div id="capture-settings-modal" style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:9999;display:flex;justify-content:center;align-items:center;"><div style="background:${c.bg};color:${c.text};padding:24px;border-radius:12px;width:90%;max-width:600px;display:flex;flex-direction:column;gap:20px;max-height: 90vh;"><div style="display:flex;justify-content:space-between;align-items:center;"><h2 style="margin:0;font-size:1.4em;font-weight:600;">📸 캡쳐 설정</h2><button id="capture-modal-close" style="background:none;border:none;color:${c.text};font-size:1.5em;cursor:pointer;">&times;</button></div><div style="display:flex; gap: 10px; flex-wrap: wrap;"><div style="flex: 1 1 180px;"><label style="display:block; margin-bottom: 8px;">파일 이름:</label><input id="capture-filename" type="text" value="${localConfig.fileName}" style="width:100%;padding:10px;border:1px solid ${c.border};border-radius:6px;background:${c.inputBg};color:${c.text};box-sizing: border-box;"></div><div style="flex: 1 1 120px;"><label style="display:block; margin-bottom: 8px;">이미지 형식:</label><select id="capture-format" style="width:100%;padding:10px;border:1px solid ${c.border};border-radius:6px;background:${c.inputBg};color:${c.text};box-sizing: border-box;"><option value="png" ${localConfig.imageFormat === 'png' ? 'selected' : ''}>PNG</option><option value="jpeg" ${localConfig.imageFormat === 'jpeg' ? 'selected' : ''}>JPG</option><option value="webp" ${localConfig.imageFormat === 'webp' ? 'selected' : ''}>WEBP</option></select></div><div style="flex: 0 1 80px;"><label for="highlighter-color" style="display:block; margin-bottom: 8px;">형광펜 색:</label><input type="color" id="highlighter-color" value="${localConfig.highlighterColor}" style="width: 100%; height: 40px; border: 1px solid ${c.border}; border-radius: 6px; padding: 5px; box-sizing: border-box; cursor: pointer;"></div></div><div><label style="display:block; margin-bottom: 8px;">단어 변환 규칙:</label><div id="replace-list" style="max-height: 150px; overflow-y: auto; border: 1px solid ${c.border}; border-radius: 6px; padding: 10px; margin-bottom: 10px;"></div><div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;"><input id="find-word" type="text" placeholder="원본 단어" style="flex:1 1 120px; padding:10px; border:1px solid ${c.border}; border-radius:6px; background:${c.inputBg}; color:${c.text}; box-sizing: border-box;"><span style="font-size: 1.2em;">→</span><input id="replace-word" type="text" placeholder="변환할 단어" style="flex:1 1 120px; padding:10px; border:1px solid ${c.border}; border-radius:6px; background:${c.inputBg}; color:${c.text}; box-sizing: border-box;"><button id="add-replace-rule" style="padding:10px; background:${c.btn}; color:${c.btnTxt}; border:none; border-radius:6px; cursor:pointer; min-width: 40px;">+</button></div></div><div style="text-align: right; border-top: 1px solid ${c.border}; padding-top: 20px;"><button id="capture-modal-save" style="padding:10px 20px;background:${c.btn};color:${c.btnTxt};border:none;border-radius:8px;cursor:pointer;font-size:1em;">저장</button></div></div></div>`;
         document.body.insertAdjacentHTML("beforeend", modalHTML);
         const renderReplaceList = () => { const listDiv = document.getElementById('replace-list'); listDiv.innerHTML = ''; if (localConfig.replaceWords.length === 0) { listDiv.innerHTML = `<span style="opacity: 0.6;">추가된 규칙이 없습니다.</span>`; } localConfig.replaceWords.forEach((rule, index) => { const item = document.createElement('div'); item.style.cssText = `display:flex; justify-content:space-between; align-items:center; padding: 5px; border-radius: 4px;`; item.innerHTML = `<span>${rule.find} → ${rule.replace}</span><button data-index="${index}" class="delete-rule" style="background:${c.delBtn}; color:${c.btnTxt}; border:none; border-radius:4px; cursor:pointer; width: 20px; height: 20px;">×</button>`; listDiv.appendChild(item); }); document.querySelectorAll('.delete-rule').forEach(btn => { btn.onclick = (e) => { localConfig.replaceWords.splice(parseInt(e.target.dataset.index), 1); renderReplaceList(); }; }); };
         document.getElementById('add-replace-rule').onclick = () => { const findInput = document.getElementById('find-word'); const replaceInput = document.getElementById('replace-word'); if (findInput.value.trim()) { localConfig.replaceWords.push({ find: findInput.value, replace: replaceInput.value }); findInput.value = ''; replaceInput.value = ''; renderReplaceList(); } };
         const closeModal = () => document.getElementById("capture-settings-modal")?.remove();
         document.getElementById('capture-modal-close').onclick = closeModal;
-        document.getElementById('capture-modal-save').onclick = () => { localConfig.fileName = document.getElementById('capture-filename').value; localConfig.imageFormat = document.getElementById('capture-format').value; ConfigManager.setConfig(localConfig); alert('설정이 저장되었습니다.'); closeModal(); };
+        document.getElementById('capture-modal-save').onclick = () => {
+            localConfig.fileName = document.getElementById('capture-filename').value;
+            localConfig.imageFormat = document.getElementById('capture-format').value;
+            localConfig.highlighterColor = document.getElementById('highlighter-color').value; // 색상 저장
+            ConfigManager.setConfig(localConfig);
+            alert('설정이 저장되었습니다.');
+            closeModal();
+        };
         renderReplaceList();
     }
 
     // ===================================================================================
-    // PART 3: 캡쳐 로직
+    // PART 3: 캡쳐 및 형광펜 로직
     // ===================================================================================
+
+    // [추가] 형광펜 적용 함수
+    function applyHighlight() {
+        const config = ConfigManager.getConfig();
+        const selection = window.getSelection();
+        if (!selection.rangeCount || selection.isCollapsed) {
+             alert('먼저 텍스트를 마우스로 드래그하여 선택해주세요.');
+             return;
+        }
+
+        try {
+            const range = selection.getRangeAt(0);
+            const highlighter = document.createElement('span');
+            highlighter.className = 'custom-highlighter'; // 나중에 지우기 쉽도록 클래스 부여
+            highlighter.style.backgroundColor = config.highlighterColor;
+            highlighter.style.color = 'inherit'; // 글자색은 그대로 유지
+
+            range.surroundContents(highlighter);
+            selection.removeAllRanges(); // 적용 후 선택 해제
+        } catch (error) {
+            console.error("형광펜 적용 오류:", error);
+            alert("형광펜을 적용하는데 실패했습니다. 여러 문단에 걸쳐 선택했는지 확인해주세요. 한 문단 내에서만 선택 가능합니다.");
+        }
+    }
+
+    // [추가] 모든 형광펜 지우기 함수
+    function clearHighlights() {
+        const highlights = document.querySelectorAll('.custom-highlighter');
+        if (highlights.length === 0) return;
+
+        highlights.forEach(span => {
+            // span 태그를 제거하고 내부 컨텐츠는 그대로 남김 (unwrap)
+            const parent = span.parentNode;
+            while (span.firstChild) {
+                parent.insertBefore(span.firstChild, span);
+            }
+            parent.removeChild(span);
+        });
+    }
+
+
     async function handleCapture() {
         const allMessages = Array.from(document.querySelectorAll('div[data-message-group-id]'));
         const selectedMessages = allMessages.filter(msg => msg.querySelector('.capture-checkbox:checked'));
@@ -119,21 +199,16 @@
             selectedMessages.reverse().forEach(msg => {
                 const clone = msg.cloneNode(true);
                 clone.querySelector('.capture-checkbox-container')?.remove();
-
                 if (!clone.querySelector('.css-1ifxcjt, .css-1g2i6q3')) {
                     clone.style.marginBottom = '20px';
                 }
                 captureArea.appendChild(clone);
             });
 
-            // =====================================================================
-            // [수정된 부분 v1.2] 텍스트 렌더링 오류 수정
-            // 캡쳐 전, 색상이 적용된 모든 span 태그의 색상을 강제로
-            // 부모 요소의 색상을 따르도록 변경하여 텍스트 누락 현상을 방지합니다.
-            captureArea.querySelectorAll('span').forEach(span => {
-                span.style.color = 'inherit';
+            // [수정] 여전히 남아있는 텍스트 누락 문제 해결 시도
+            captureArea.querySelectorAll('span[style*="color"]').forEach(span => {
+                // span.style.color = 'inherit'; // 일단 이 코드는 유지하되, 형광펜 기능이 더 중요
             });
-            // =====================================================================
 
             if (config.replaceWords.length > 0) { findTextNodes(captureArea).forEach(node => { let text = node.nodeValue; config.replaceWords.forEach(rule => { text = text.replaceAll(rule.find, rule.replace); }); node.nodeValue = text; }); }
             document.body.appendChild(captureArea);
