@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         crack chat capture
 // @namespace    http://tampermonkey.net/
-// @version      1.0
+// @version      1.1
 // @description  뤼튼 크랙의 채팅 로그를 선택하여 캡쳐
 // @author       뤼붕이
 // @match        https://crack.wrtn.ai/stories/*/episodes/*
@@ -20,7 +20,7 @@
     // ===================================================================================
     class ConfigManager {
         static getConfig() {
-            const defaultConfig = { imageFormat: 'png', fileName: '캡쳐_{date}', replaceWords: [] };
+            const defaultConfig = { imageFormat: 'jpeg', fileName: '캡쳐_{date}', replaceWords: [] };
             try {
                 const storedConfig = JSON.parse(localStorage.getItem("crackCaptureConfigV3") || "{}");
                 if (!Array.isArray(storedConfig.replaceWords)) storedConfig.replaceWords = [];
@@ -38,17 +38,17 @@
             if (group.querySelector('.capture-checkbox-container')) return;
             const container = document.createElement('div');
             container.className = 'capture-checkbox-container';
-            container.style.cssText = 'display: flex; align-items: center; justify-content: center; z-index: 10;'; // cursor: pointer 제거
+            container.style.cssText = 'display: flex; align-items: center; justify-content: center; z-index: 10;';
             const checkbox = document.createElement('input');
             checkbox.type = 'checkbox';
             checkbox.className = 'capture-checkbox';
             checkbox.style.cssText = 'width: 18px; height: 18px; cursor: pointer;';
             container.appendChild(checkbox);
 
-            if (group.querySelector('.css-1ifxcjt, .css-1g2i6q3')) { // 채팅형
+            if (group.querySelector('.css-1ifxcjt, .css-1g2i6q3')) {
                  group.prepend(container);
                  group.style.display = 'flex';
-            } else { // 소설형
+            } else {
                 container.style.position = 'absolute';
                 container.style.right = '0px';
                 container.style.top = '0px';
@@ -87,7 +87,7 @@
         let localConfig = ConfigManager.getConfig();
         const isDark = document.body.dataset.theme === 'dark';
         const c = { bg: isDark ? '#2c2c2e' : '#ffffff', text: isDark ? '#e0e0e0' : '#333333', border: isDark ? '#444444' : '#cccccc', inputBg: isDark ? '#3a3a3c' : '#f0f0f0', btn: isDark ? '#0a84ff' : '#007aff', delBtn: isDark ? '#ff453a' : '#ff3b30', btnTxt: '#ffffff' };
-        const modalHTML = `<div id="capture-settings-modal" style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:9999;display:flex;justify-content:center;align-items:center;"><div style="background:${c.bg};color:${c.text};padding:24px;border-radius:12px;width:90%;max-width:600px;display:flex;flex-direction:column;gap:20px;max-height: 90vh;"><div style="display:flex;justify-content:space-between;align-items:center;"><h2 style="margin:0;font-size:1.4em;font-weight:600;">📸 캡쳐 설정</h2><button id="capture-modal-close" style="background:none;border:none;color:${c.text};font-size:1.5em;cursor:pointer;">&times;</button></div><div style="display:flex; gap: 10px; flex-wrap: wrap;"><div style="flex: 1 1 200px;"><label style="display:block; margin-bottom: 8px;">파일 이름:</label><input id="capture-filename" type="text" value="${localConfig.fileName}" style="width:100%;padding:10px;border:1px solid ${c.border};border-radius:6px;background:${c.inputBg};color:${c.text};box-sizing: border-box;"></div><div style="flex: 1 1 200px;"><label style="display:block; margin-bottom: 8px;">이미지 형식:</label><select id="capture-format" style="width:100%;padding:10px;border:1px solid ${c.border};border-radius:6px;background:${c.inputBg};color:${c.text};box-sizing: border-box;"><option value="png" ${localConfig.imageFormat === 'png' ? 'selected' : ''}>PNG</option><option value="jpeg" ${localConfig.imageFormat === 'jpeg' ? 'selected' : ''}>JPG</option><option value="webp" ${localConfig.imageFormat === 'webp' ? 'selected' : ''}>WEBP</option></select></div></div><div><label style="display:block; margin-bottom: 8px;">단어 변환 규칙:</label><div id="replace-list" style="max-height: 150px; overflow-y: auto; border: 1px solid ${c.border}; border-radius: 6px; padding: 10px; margin-bottom: 10px;"></div><div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;"><input id="find-word" type="text" placeholder="원본 단어" style="flex:1 1 120px; padding:10px; border:1px solid ${c.border}; border-radius:6px; background:${c.inputBg}; color:${c.text}; box-sizing: border-box;"><span style="font-size: 1.2em;">→</span><input id="replace-word" type="text" placeholder="변환할 단어" style="flex:1 1 120px; padding:10px; border:1px solid ${c.border}; border-radius:6px; background:${c.inputBg}; color:${c.text}; box-sizing: border-box;"><button id="add-replace-rule" style="padding:10px; background:${c.btn}; color:${c.btnTxt}; border:none; border-radius:6px; cursor:pointer; min-width: 40px;">+</button></div></div><div style="text-align: right; border-top: 1px solid ${c.border}; padding-top: 20px;"><button id="capture-modal-save" style="padding:10px 20px;background:${c.btn};color:${c.btnTxt};border:none;border-radius:8px;cursor:pointer;font-size:1em;">저장</button></div></div></div>`;
+        const modalHTML = `<div id="capture-settings-modal" style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:9999;display:flex;justify-content:center;align-items:center;"><div style="background:${c.bg};color:${c.text};padding:24px;border-radius:12px;width:90%;max-width:600px;display:flex;flex-direction:column;gap:20px;max-height: 90vh;"><div style="display:flex;justify-content:space-between;align-items:center;"><h2 style="margin:0;font-size:1.4em;font-weight:600;">📸 캡쳐 설정</h2><button id="capture-modal-close" style="background:none;border:none;color:${c.text};font-size:1.5em;cursor:pointer;">&times;</button></div><div style="display:flex; gap: 10px; flex-wrap: wrap;"><div style="flex: 1 1 200px;"><label style="display:block; margin-bottom: 8px;">파일 이름:</label><input id="capture-filename" type="text" value="${localConfig.fileName}" style="width:100%;padding:10px;border:1px solid ${c.border};border-radius:6px;background:${c.inputBg};color:${c.text};box-sizing: border-box;"></div><div style="flex: 1 1 200px;"><label style="display:block; margin-bottom: 8px;">이미지 형식:</label><select id="capture-format" style="width:100%;padding:10px;border:1px solid ${c.border};border-radius:6px;background:${c.inputBg};color:${c.text};box-sizing: border-box;"><option value="jpeg" ${localConfig.imageFormat === 'jpeg' ? 'selected' : ''}>JPG</option><option value="png" ${localConfig.imageFormat === 'png' ? 'selected' : ''}>PNG</option><option value="webp" ${localConfig.imageFormat === 'webp' ? 'selected' : ''}>WEBP</option></select></div></div><div><label style="display:block; margin-bottom: 8px;">단어 변환 규칙:</label><div id="replace-list" style="max-height: 150px; overflow-y: auto; border: 1px solid ${c.border}; border-radius: 6px; padding: 10px; margin-bottom: 10px;"></div><div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;"><input id="find-word" type="text" placeholder="원본 단어" style="flex:1 1 120px; padding:10px; border:1px solid ${c.border}; border-radius:6px; background:${c.inputBg}; color:${c.text}; box-sizing: border-box;"><span style="font-size: 1.2em;">→</span><input id="replace-word" type="text" placeholder="변환할 단어" style="flex:1 1 120px; padding:10px; border:1px solid ${c.border}; border-radius:6px; background:${c.inputBg}; color:${c.text}; box-sizing: border-box;"><button id="add-replace-rule" style="padding:10px; background:${c.btn}; color:${c.btnTxt}; border:none; border-radius:6px; cursor:pointer; min-width: 40px;">+</button></div></div><div style="text-align: right; border-top: 1px solid ${c.border}; padding-top: 20px;"><button id="capture-modal-save" style="padding:10px 20px;background:${c.btn};color:${c.btnTxt};border:none;border-radius:8px;cursor:pointer;font-size:1em;">저장</button></div></div></div>`;
         document.body.insertAdjacentHTML("beforeend", modalHTML);
         const renderReplaceList = () => { const listDiv = document.getElementById('replace-list'); listDiv.innerHTML = ''; if (localConfig.replaceWords.length === 0) { listDiv.innerHTML = `<span style="opacity: 0.6;">추가된 규칙이 없습니다.</span>`; } localConfig.replaceWords.forEach((rule, index) => { const item = document.createElement('div'); item.style.cssText = `display:flex; justify-content:space-between; align-items:center; padding: 5px; border-radius: 4px;`; item.innerHTML = `<span>${rule.find} → ${rule.replace}</span><button data-index="${index}" class="delete-rule" style="background:${c.delBtn}; color:${c.btnTxt}; border:none; border-radius:4px; cursor:pointer; width: 20px; height: 20px;">×</button>`; listDiv.appendChild(item); }); document.querySelectorAll('.delete-rule').forEach(btn => { btn.onclick = (e) => { localConfig.replaceWords.splice(parseInt(e.target.dataset.index), 1); renderReplaceList(); }; }); };
         document.getElementById('add-replace-rule').onclick = () => { const findInput = document.getElementById('find-word'); const replaceInput = document.getElementById('replace-word'); if (findInput.value.trim()) { localConfig.replaceWords.push({ find: findInput.value, replace: replaceInput.value }); findInput.value = ''; replaceInput.value = ''; renderReplaceList(); } };
@@ -123,6 +123,32 @@
                 const clone = msg.cloneNode(true);
                 clone.querySelector('.capture-checkbox-container')?.remove();
 
+                const codeBlocks = clone.querySelectorAll('pre.shiki');
+                codeBlocks.forEach(codeBlock => {
+                    const plainText = codeBlock.innerText;
+                    const newPre = document.createElement('pre');
+                    newPre.textContent = plainText;
+
+                    const originalStyle = window.getComputedStyle(codeBlock);
+
+                    // 1. CSS를 기반으로 스타일을 강제 적용
+                    newPre.style.backgroundColor = '#242321';
+                    newPre.style.color = '#e1e4e8';
+                    newPre.style.fontSize = '.875rem';
+                    // font-family로 강제 적용
+                    newPre.style.fontFamily = '"IBMPlexMono-Regular", "IBM Plex Mono", "Pretendard", "Apple SD Gothic Neo", -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif';
+
+                    // 2. 레이아웃 유지를 위해 나머지 필수 스타일은 복사
+                    newPre.style.padding = originalStyle.padding;
+                    newPre.style.margin = originalStyle.margin;
+                    newPre.style.borderRadius = originalStyle.borderRadius;
+                    newPre.style.lineHeight = originalStyle.lineHeight;
+                    newPre.style.whiteSpace = 'pre-wrap';
+                    newPre.style.wordBreak = 'break-word';
+
+                    codeBlock.parentNode.replaceChild(newPre, codeBlock);
+                });
+
                 if (!clone.querySelector('.css-1ifxcjt, .css-1g2i6q3')) {
                     clone.style.marginBottom = '20px';
                 }
@@ -135,12 +161,21 @@
             captureArea.style.position = 'absolute';
             captureArea.style.left = '-9999px';
             captureArea.style.top = '0px';
-            const canvas = await html2canvas(captureArea, { useCORS: true, backgroundColor: bgColor, logging: false });
+
+            const canvas = await html2canvas(captureArea, {
+                useCORS: true,
+                backgroundColor: bgColor,
+                logging: false
+            });
+
             document.body.removeChild(captureArea);
             downloadImage(canvas.toDataURL(`image/${config.imageFormat}`, 1.0), config.imageFormat);
         } catch (error) { console.error('캡쳐 중 오류 발생:', error); alert('캡쳐에 실패했습니다. 콘솔을 확인해주세요.'); } finally { btn.innerHTML = originalContent; btn.disabled = false; }
     }
 
+    // ===================================================================================
+    // PART 3-1: 다운로드 및 보조 함수
+    // ===================================================================================
     function downloadImage(dataUrl, format) {
         let fileName = ConfigManager.getConfig().fileName;
         const now = new Date();
@@ -164,7 +199,7 @@
     }
 
     // ===================================================================================
-    // PART 4: 스크립트 실행 및 보조 함수
+    // PART 4: 스크립트 실행
     // ===================================================================================
     function waitForElement(selector) { return new Promise(resolve => { const interval = setInterval(() => { const element = document.querySelector(selector); if (element) { clearInterval(interval); resolve(element); } }, 100); }); }
     const observer = new MutationObserver(() => { if (!document.getElementById('capture-settings-button') || !document.getElementById('capture-action-button')) { createButtons(); } injectCheckboxes(); });
