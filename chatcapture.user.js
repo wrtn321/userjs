@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         crack chat capture
 // @namespace    http://tampermonkey.net/
-// @version      1.1
+// @version      1.2
 // @description  뤼튼 크랙의 채팅 로그를 선택하여 캡쳐
 // @author       뤼붕이
 // @match        https://crack.wrtn.ai/stories/*/episodes/*
@@ -114,7 +114,7 @@
             const captureArea = document.createElement('div');
             captureArea.style.padding = '20px';
             captureArea.style.boxSizing = 'border-box';
-            const chatContainer = document.querySelector('.css-18d9jqd > div:first-child, .css-alg45 > div:first-child');
+            const chatContainer = document.querySelector('.css-18d9jqd, .css-alg45');
             if (chatContainer) captureArea.style.width = `${chatContainer.clientWidth}px`;
             const bgColor = window.getComputedStyle(document.body).backgroundColor;
             captureArea.style.backgroundColor = bgColor;
