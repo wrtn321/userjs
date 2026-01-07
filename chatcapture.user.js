@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         crack chat capture
 // @namespace    http://tampermonkey.net/
-// @version      1.31
+// @version      1.32
 // @description  뤼튼 크랙의 채팅 로그를 선택하여 캡쳐
 // @author       뤼붕이
 // @match        https://crack.wrtn.ai/stories/*/episodes/*
@@ -101,33 +101,29 @@
     // ===================================================================================
     // PART 3: 캡쳐 로직
     // ===================================================================================
-
-    // ✨✨✨ '투명 처리'를 위한 새로운 함수 ✨✨✨
     function hideKeywordsInElement(element, keywords) {
         if (!element || !keywords || keywords.length === 0) return;
-
-        // 정규식 특수 문자를 이스케이프하는 헬퍼 함수
-        const escapeRegExp = (string) => {
-            return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        };
-
-        // 모든 키워드를 |(OR)로 연결한 하나의 정규식 생성
+        const escapeRegExp = (string) => string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         const regex = new RegExp(keywords.map(escapeRegExp).join('|'), 'g');
-
         const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT, null, false);
         let node;
         const nodesToProcess = [];
-        while (node = walker.nextNode()) {
-            nodesToProcess.push(node);
-        }
-
+        while (node = walker.nextNode()) { nodesToProcess.push(node); }
         nodesToProcess.forEach(node => {
-            if (node.nodeValue.match(regex)) {
-                const span = document.createElement('span');
-                span.innerHTML = node.nodeValue.replace(regex, (match) =>
-                    `<span style="color: transparent !important;">${match}</span>`
-                );
-                node.parentNode.replaceChild(span, node);
+            if (regex.test(node.nodeValue)) {
+                const parent = node.parentNode;
+                const fragment = document.createDocumentFragment();
+                let lastIndex = 0;
+                node.nodeValue.replace(regex, (match, offset) => {
+                    fragment.appendChild(document.createTextNode(node.nodeValue.slice(lastIndex, offset)));
+                    const span = document.createElement('span');
+                    span.style.color = 'transparent';
+                    span.textContent = match;
+                    fragment.appendChild(span);
+                    lastIndex = offset + match.length;
+                });
+                fragment.appendChild(document.createTextNode(node.nodeValue.slice(lastIndex)));
+                parent.replaceChild(fragment, node);
             }
         });
     }
@@ -143,10 +139,18 @@
         try {
             const config = ConfigManager.getConfig();
             const captureArea = document.createElement('div');
-            captureArea.style.padding = '20px';
+            const PADDING_VALUE = 20; // 상하좌우 여백 값을 상수로 정의
+            captureArea.style.padding = `${PADDING_VALUE}px`;
             captureArea.style.boxSizing = 'border-box';
             const chatContainer = document.querySelector('.css-18d9jqd, .css-alg45');
-            if (chatContainer) captureArea.style.width = `${chatContainer.clientWidth}px`;
+
+            // ================== ✨ 여기가 최종 수정된 부분 ✨ ==================
+            if (chatContainer) {
+                // 원래 너비에 좌우 패딩값(20 * 2)을 더해서 최종 너비를 설정
+                captureArea.style.width = `${chatContainer.clientWidth + (PADDING_VALUE * 2)}px`;
+            }
+            // ==========================================================
+
             const bgColor = window.getComputedStyle(document.body).backgroundColor;
             captureArea.style.backgroundColor = bgColor;
 
@@ -180,7 +184,6 @@
                 captureArea.appendChild(clone);
             });
 
-            // ✨✨✨ 기존 '공백 변환' 로직을 '투명 처리' 함수 호출로 변경 ✨✨✨
             if (config.hiddenKeywords && config.hiddenKeywords.length > 0) {
                 hideKeywordsInElement(captureArea, config.hiddenKeywords);
             }
