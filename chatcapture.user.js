@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         crack chat capture
 // @namespace    http://tampermonkey.net/
-// @version      1.3
+// @version      1.31
 // @description  뤼튼 크랙의 채팅 로그를 선택하여 캡쳐
 // @author       뤼붕이
 // @match        https://crack.wrtn.ai/stories/*/episodes/*
@@ -16,14 +16,12 @@
     'use strict';
 
     // ===================================================================================
-    // PART 1: 설정 관리
+    // PART 1: 설정 관리 (변경 없음)
     // ===================================================================================
     class ConfigManager {
         static getConfig() {
-            // ✨ 숨김 기능으로 변경되면서 기본 설정 구조도 변경
             const defaultConfig = { imageFormat: 'jpeg', fileName: '캡쳐_{date}', hiddenKeywords: [] };
             try {
-                // ✨ 설정 데이터 충돌을 막기 위해 저장소 키를 V4로 변경
                 const storedConfig = JSON.parse(localStorage.getItem("crackCaptureConfigV4") || "{}");
                 if (!Array.isArray(storedConfig.hiddenKeywords)) storedConfig.hiddenKeywords = [];
                 return { ...defaultConfig, ...storedConfig };
@@ -33,7 +31,7 @@
     }
 
     // ===================================================================================
-    // PART 2: UI 생성 및 관리
+    // PART 2: UI 생성 및 관리 (변경 없음)
     // ===================================================================================
     function injectCheckboxes() {
         document.querySelectorAll('div[data-message-group-id]').forEach(group => {
@@ -84,7 +82,6 @@
         }
     }
 
-    // ✨✨✨ 설정 모달 UI 및 로직 전체 변경 ✨✨✨
     function showSettingsModal() {
         if (document.getElementById("capture-settings-modal")) return;
         let localConfig = ConfigManager.getConfig();
@@ -104,6 +101,37 @@
     // ===================================================================================
     // PART 3: 캡쳐 로직
     // ===================================================================================
+
+    // ✨✨✨ '투명 처리'를 위한 새로운 함수 ✨✨✨
+    function hideKeywordsInElement(element, keywords) {
+        if (!element || !keywords || keywords.length === 0) return;
+
+        // 정규식 특수 문자를 이스케이프하는 헬퍼 함수
+        const escapeRegExp = (string) => {
+            return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        };
+
+        // 모든 키워드를 |(OR)로 연결한 하나의 정규식 생성
+        const regex = new RegExp(keywords.map(escapeRegExp).join('|'), 'g');
+
+        const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT, null, false);
+        let node;
+        const nodesToProcess = [];
+        while (node = walker.nextNode()) {
+            nodesToProcess.push(node);
+        }
+
+        nodesToProcess.forEach(node => {
+            if (node.nodeValue.match(regex)) {
+                const span = document.createElement('span');
+                span.innerHTML = node.nodeValue.replace(regex, (match) =>
+                    `<span style="color: transparent !important;">${match}</span>`
+                );
+                node.parentNode.replaceChild(span, node);
+            }
+        });
+    }
+
     async function handleCapture() {
         const allMessages = Array.from(document.querySelectorAll('div[data-message-group-id]'));
         const selectedMessages = allMessages.filter(msg => msg.querySelector('.capture-checkbox:checked'));
@@ -152,18 +180,9 @@
                 captureArea.appendChild(clone);
             });
 
-            // ✨✨✨ 단어 변환 로직을 '단어 숨김' 로직으로 변경 ✨✨✨
+            // ✨✨✨ 기존 '공백 변환' 로직을 '투명 처리' 함수 호출로 변경 ✨✨✨
             if (config.hiddenKeywords && config.hiddenKeywords.length > 0) {
-                const blankChar = 'ㅤ'; // 특수 공백 문자 (U+3164)
-                findTextNodes(captureArea).forEach(node => {
-                    let text = node.nodeValue;
-                    config.hiddenKeywords.forEach(keyword => {
-                        if(keyword) { // 키워드가 비어있지 않은지 확인
-                            text = text.replaceAll(keyword, blankChar.repeat(keyword.length));
-                        }
-                    });
-                    node.nodeValue = text;
-                });
+                hideKeywordsInElement(captureArea, config.hiddenKeywords);
             }
 
             document.body.appendChild(captureArea);
@@ -183,7 +202,7 @@
     }
 
     // ===================================================================================
-    // PART 3-1: 다운로드 및 보조 함수
+    // PART 3-1: 다운로드 함수 (변경 없음)
     // ===================================================================================
     function downloadImage(dataUrl, format) {
         let fileName = ConfigManager.getConfig().fileName;
@@ -199,16 +218,8 @@
         document.body.removeChild(link);
     }
 
-    function findTextNodes(element) {
-        const textNodes = [];
-        const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT, null, false);
-        let node;
-        while (node = walker.nextNode()) { if (node.nodeValue.trim() !== '') textNodes.push(node); }
-        return textNodes;
-    }
-
     // ===================================================================================
-    // PART 4: 스크립트 실행
+    // PART 4: 스크립트 실행 (변경 없음)
     // ===================================================================================
     function waitForElement(selector) { return new Promise(resolve => { const interval = setInterval(() => { const element = document.querySelector(selector); if (element) { clearInterval(interval); resolve(element); } }, 100); }); }
     const observer = new MutationObserver(() => { if (!document.getElementById('capture-settings-button') || !document.getElementById('capture-action-button')) { createButtons(); } injectCheckboxes(); });
