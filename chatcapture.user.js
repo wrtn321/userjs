@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         crack chat capture
 // @namespace    http://tampermonkey.net/
-// @version      1.32
+// @version      1.33
 // @description  뤼튼 크랙의 채팅 로그를 선택하여 캡쳐
 // @author       뤼붕이
 // @match        https://crack.wrtn.ai/stories/*/episodes/*
@@ -16,11 +16,11 @@
     'use strict';
 
     // ===================================================================================
-    // PART 1: 설정 관리 (변경 없음)
+    // PART 1: 설정 관리
     // ===================================================================================
     class ConfigManager {
         static getConfig() {
-            const defaultConfig = { imageFormat: 'jpeg', fileName: '캡쳐_{date}', hiddenKeywords: [] };
+            const defaultConfig = { imageFormat: 'jpeg', fileName: '캡쳐_{date}', hiddenKeywords: [], highQualityCapture: false };
             try {
                 const storedConfig = JSON.parse(localStorage.getItem("crackCaptureConfigV4") || "{}");
                 if (!Array.isArray(storedConfig.hiddenKeywords)) storedConfig.hiddenKeywords = [];
@@ -31,7 +31,7 @@
     }
 
     // ===================================================================================
-    // PART 2: UI 생성 및 관리 (변경 없음)
+    // PART 2: UI 생성 및 관리
     // ===================================================================================
     function injectCheckboxes() {
         document.querySelectorAll('div[data-message-group-id]').forEach(group => {
@@ -87,13 +87,22 @@
         let localConfig = ConfigManager.getConfig();
         const isDark = document.body.dataset.theme === 'dark';
         const c = { bg: isDark ? '#2c2c2e' : '#ffffff', text: isDark ? '#e0e0e0' : '#333333', border: isDark ? '#444444' : '#cccccc', inputBg: isDark ? '#3a3a3c' : '#f0f0f0', btn: isDark ? '#0a84ff' : '#007aff', delBtn: isDark ? '#ff453a' : '#ff3b30', btnTxt: '#ffffff' };
-        const modalHTML = `<div id="capture-settings-modal" style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:9999;display:flex;justify-content:center;align-items:center;"><div style="background:${c.bg};color:${c.text};padding:24px;border-radius:12px;width:90%;max-width:600px;display:flex;flex-direction:column;gap:20px;max-height: 90vh;"><div style="display:flex;justify-content:space-between;align-items:center;"><h2 style="margin:0;font-size:1.4em;font-weight:600;">📸 캡쳐 설정</h2><button id="capture-modal-close" style="background:none;border:none;color:${c.text};font-size:1.5em;cursor:pointer;">&times;</button></div><div style="display:flex; gap: 10px; flex-wrap: wrap;"><div style="flex: 1 1 200px;"><label style="display:block; margin-bottom: 8px;">파일 이름:</label><input id="capture-filename" type="text" value="${localConfig.fileName}" style="width:100%;padding:10px;border:1px solid ${c.border};border-radius:6px;background:${c.inputBg};color:${c.text};box-sizing: border-box;"></div><div style="flex: 1 1 200px;"><label style="display:block; margin-bottom: 8px;">이미지 형식:</label><select id="capture-format" style="width:100%;padding:10px;border:1px solid ${c.border};border-radius:6px;background:${c.inputBg};color:${c.text};box-sizing: border-box;"><option value="jpeg" ${localConfig.imageFormat === 'jpeg' ? 'selected' : ''}>JPG</option><option value="png" ${localConfig.imageFormat === 'png' ? 'selected' : ''}>PNG</option><option value="webp" ${localConfig.imageFormat === 'webp' ? 'selected' : ''}>WEBP</option></select></div></div><div><label style="display:block; margin-bottom: 8px;">단어 숨김 규칙:</label><div id="hidden-keyword-list" style="max-height: 150px; overflow-y: auto; border: 1px solid ${c.border}; border-radius: 6px; padding: 10px; margin-bottom: 10px;"></div><div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;"><input id="hidden-keyword-input" type="text" placeholder="숨길 키워드 등록" style="flex:1; padding:10px; border:1px solid ${c.border}; border-radius:6px; background:${c.inputBg}; color:${c.text}; box-sizing: border-box;"><button id="add-hidden-keyword" style="padding:10px; background:${c.btn}; color:${c.btnTxt}; border:none; border-radius:6px; cursor:pointer; min-width: 40px;">+</button></div></div><div style="text-align: right; border-top: 1px solid ${c.border}; padding-top: 20px;"><button id="capture-modal-save" style="padding:10px 20px;background:${c.btn};color:${c.btnTxt};border:none;border-radius:8px;cursor:pointer;font-size:1em;">저장</button></div></div></div>`;
+        const modalHTML = `<div id="capture-settings-modal" style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:9999;display:flex;justify-content:center;align-items:center;"><div style="background:${c.bg};color:${c.text};padding:24px;border-radius:12px;width:90%;max-width:600px;display:flex;flex-direction:column;gap:20px;max-height: 90vh;"><div style="display:flex;justify-content:space-between;align-items:center;"><h2 style="margin:0;font-size:1.4em;font-weight:600;">📸 캡쳐 설정</h2><button id="capture-modal-close" style="background:none;border:none;color:${c.text};font-size:1.5em;cursor:pointer;">&times;</button></div><div style="display:flex; gap: 10px; flex-wrap: wrap;"><div style="flex: 1 1 200px;"><label style="display:block; margin-bottom: 8px;">파일 이름:</label><input id="capture-filename" type="text" value="${localConfig.fileName}" style="width:100%;padding:10px;border:1px solid ${c.border};border-radius:6px;background:${c.inputBg};color:${c.text};box-sizing: border-box;"></div><div style="flex: 1 1 200px;"><label style="display:block; margin-bottom: 8px;">이미지 형식:</label><select id="capture-format" style="width:100%;padding:10px;border:1px solid ${c.border};border-radius:6px;background:${c.inputBg};color:${c.text};box-sizing: border-box;"><option value="jpeg" ${localConfig.imageFormat === 'jpeg' ? 'selected' : ''}>JPG</option><option value="png" ${localConfig.imageFormat === 'png' ? 'selected' : ''}>PNG</option><option value="webp" ${localConfig.imageFormat === 'webp' ? 'selected' : ''}>WEBP</option></select></div></div><div style="display: flex; align-items: center; padding-bottom: 10px; border-bottom: 1px solid ${c.border};"><input type="checkbox" id="capture-high-quality" style="width: 16px; height: 16px; margin-right: 8px;"><label for="capture-high-quality" style="cursor: pointer; user-select: none;">고화질(용량증가)</label></div><div><label style="display:block; margin-bottom: 8px;">단어 숨김 규칙:</label><div id="hidden-keyword-list" style="max-height: 150px; overflow-y: auto; border: 1px solid ${c.border}; border-radius: 6px; padding: 10px; margin-bottom: 10px;"></div><div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;"><input id="hidden-keyword-input" type="text" placeholder="숨길 키워드 등록" style="flex:1; padding:10px; border:1px solid ${c.border}; border-radius:6px; background:${c.inputBg}; color:${c.text}; box-sizing: border-box;"><button id="add-hidden-keyword" style="padding:10px; background:${c.btn}; color:${c.btnTxt}; border:none; border-radius:6px; cursor:pointer; min-width: 40px;">+</button></div></div><div style="text-align: right; border-top: 1px solid ${c.border}; padding-top: 20px;"><button id="capture-modal-save" style="padding:10px 20px;background:${c.btn};color:${c.btnTxt};border:none;border-radius:8px;cursor:pointer;font-size:1em;">저장</button></div></div></div>`;
         document.body.insertAdjacentHTML("beforeend", modalHTML);
+        document.getElementById('capture-high-quality').checked = !!localConfig.highQualityCapture;
+
         const renderHiddenKeywordList = () => { const listDiv = document.getElementById('hidden-keyword-list'); listDiv.innerHTML = ''; if (localConfig.hiddenKeywords.length === 0) { listDiv.innerHTML = `<span style="opacity: 0.6;">등록된 키워드가 없습니다.</span>`; } localConfig.hiddenKeywords.forEach((keyword, index) => { const item = document.createElement('div'); item.style.cssText = `display:flex; justify-content:space-between; align-items:center; padding: 5px; border-radius: 4px;`; item.innerHTML = `<span>${keyword}</span><button data-index="${index}" class="delete-keyword" style="background:${c.delBtn}; color:${c.btnTxt}; border:none; border-radius:4px; cursor:pointer; width: 20px; height: 20px;">×</button>`; listDiv.appendChild(item); }); document.querySelectorAll('.delete-keyword').forEach(btn => { btn.onclick = (e) => { localConfig.hiddenKeywords.splice(parseInt(e.target.dataset.index), 1); renderHiddenKeywordList(); }; }); };
         document.getElementById('add-hidden-keyword').onclick = () => { const keywordInput = document.getElementById('hidden-keyword-input'); if (keywordInput.value.trim()) { localConfig.hiddenKeywords.push(keywordInput.value.trim()); keywordInput.value = ''; renderHiddenKeywordList(); } };
         const closeModal = () => document.getElementById("capture-settings-modal")?.remove();
         document.getElementById('capture-modal-close').onclick = closeModal;
-        document.getElementById('capture-modal-save').onclick = () => { localConfig.fileName = document.getElementById('capture-filename').value; localConfig.imageFormat = document.getElementById('capture-format').value; ConfigManager.setConfig(localConfig); alert('설정이 저장되었습니다.'); closeModal(); };
+        document.getElementById('capture-modal-save').onclick = () => {
+            localConfig.fileName = document.getElementById('capture-filename').value;
+            localConfig.imageFormat = document.getElementById('capture-format').value;
+            localConfig.highQualityCapture = document.getElementById('capture-high-quality').checked;
+            ConfigManager.setConfig(localConfig);
+            alert('설정이 저장되었습니다.');
+            closeModal();
+        };
         renderHiddenKeywordList();
     }
 
@@ -139,17 +148,14 @@
         try {
             const config = ConfigManager.getConfig();
             const captureArea = document.createElement('div');
-            const PADDING_VALUE = 20; // 상하좌우 여백 값을 상수로 정의
+            const PADDING_VALUE = 20;
             captureArea.style.padding = `${PADDING_VALUE}px`;
             captureArea.style.boxSizing = 'border-box';
             const chatContainer = document.querySelector('.css-18d9jqd, .css-alg45');
 
-            // ================== ✨ 여기가 최종 수정된 부분 ✨ ==================
             if (chatContainer) {
-                // 원래 너비에 좌우 패딩값(20 * 2)을 더해서 최종 너비를 설정
                 captureArea.style.width = `${chatContainer.clientWidth + (PADDING_VALUE * 2)}px`;
             }
-            // ==========================================================
 
             const bgColor = window.getComputedStyle(document.body).backgroundColor;
             captureArea.style.backgroundColor = bgColor;
@@ -158,8 +164,7 @@
                 const clone = msg.cloneNode(true);
                 clone.querySelector('.capture-checkbox-container')?.remove();
 
-                const codeBlocks = clone.querySelectorAll('pre.shiki');
-                codeBlocks.forEach(codeBlock => {
+                clone.querySelectorAll('pre.shiki').forEach(codeBlock => {
                     const plainText = codeBlock.innerText;
                     const newPre = document.createElement('pre');
                     newPre.textContent = plainText;
@@ -193,11 +198,17 @@
             captureArea.style.left = '-9999px';
             captureArea.style.top = '0px';
 
-            const canvas = await html2canvas(captureArea, {
+            const canvasOptions = {
                 useCORS: true,
                 backgroundColor: bgColor,
                 logging: false
-            });
+            };
+
+            if (config.highQualityCapture) {
+                canvasOptions.scale = 2;
+            }
+
+            const canvas = await html2canvas(captureArea, canvasOptions);
 
             document.body.removeChild(captureArea);
             downloadImage(canvas.toDataURL(`image/${config.imageFormat}`, 1.0), config.imageFormat);
@@ -205,7 +216,7 @@
     }
 
     // ===================================================================================
-    // PART 3-1: 다운로드 함수 (변경 없음)
+    // PART 3-1: 다운로드 및 보조 함수
     // ===================================================================================
     function downloadImage(dataUrl, format) {
         let fileName = ConfigManager.getConfig().fileName;
@@ -222,10 +233,31 @@
     }
 
     // ===================================================================================
-    // PART 4: 스크립트 실행 (변경 없음)
+    // PART 4: 스크립트 실행
     // ===================================================================================
-    function waitForElement(selector) { return new Promise(resolve => { const interval = setInterval(() => { const element = document.querySelector(selector); if (element) { clearInterval(interval); resolve(element); } }, 100); }); }
-    const observer = new MutationObserver(() => { if (!document.getElementById('capture-settings-button') || !document.getElementById('capture-action-button')) { createButtons(); } injectCheckboxes(); });
-    waitForElement('.css-18d9jqd, .css-alg45').then(chatArea => { observer.observe(chatArea, { childList: true, subtree: true }); createButtons(); injectCheckboxes(); });
+    function waitForElement(selector) {
+        return new Promise(resolve => {
+            const interval = setInterval(() => {
+                const element = document.querySelector(selector);
+                if (element) {
+                    clearInterval(interval);
+                    resolve(element);
+                }
+            }, 100);
+        });
+    }
+
+    const observer = new MutationObserver(() => {
+        if (!document.getElementById('capture-settings-button') || !document.getElementById('capture-action-button')) {
+            createButtons();
+        }
+        injectCheckboxes();
+    });
+
+    waitForElement('.css-18d9jqd, .css-alg45').then(chatArea => {
+        observer.observe(chatArea, { childList: true, subtree: true });
+        createButtons();
+        injectCheckboxes();
+    });
 
 })();
