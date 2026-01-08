@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         crack text copy
 // @namespace    http://tampermonkey.net/
-// @version      2.0
+// @version      2.1
 // @description  사용자 프롬프트와 함께 채팅로그를 복사
 // @author       뤼붕이
 // @match        https://crack.wrtn.ai/stories/*/episodes/*
@@ -173,12 +173,53 @@
         getEl('crack-copy-close').onclick = () => getEl("crack-copy-settings-modal").remove();
         getEl('crack-copy-save-settings').onclick = () => { localConfig.turnCount = parseInt(getEl('crack-copy-turn-count').value, 10) || 0; ConfigManager.setConfig(localConfig); alert('설정이 저장되었습니다.'); getEl("crack-copy-settings-modal").remove(); }; renderPrompts(); renderEditPane(null);
     }
+
     async function createButtons() {
-        const menuContainer = await (new Promise(r => { const i = setInterval(() => { const e = document.querySelector('.css-uxwch2'); if (e) { clearInterval(i); r(e); } }, 100); }));
-        if (!document.getElementById('custom-copy-settings-button')) { const btn = document.createElement('div'); btn.id = 'custom-copy-settings-button'; btn.className = 'css-1dib65l'; btn.style.cssText = "display: flex; cursor: pointer; padding: 10px;"; btn.innerHTML = `<p class="css-1xke5yy"><span style="padding-right: 6px;">📋</span>복사 설정</p>`; btn.onclick = showSettingsModal; menuContainer.appendChild(btn); }
-        const btnGroup = await (new Promise(r => { const i = setInterval(() => { const e = document.querySelector('.css-fhxiwe'); if (e) { clearInterval(i); r(e); } }, 100); }));
-        if (!document.getElementById('instant-copy-button')) { const btn = document.createElement('button'); btn.id = 'instant-copy-button'; btn.className = 'css-8xk5x8 eh9908w0'; btn.style.cssText = "cursor: pointer; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;"; btn.title = "저장된 설정으로 즉시 복사"; btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" fill="var(--icon_tertiary)" viewBox="0 0 24 24" width="18" height="18"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"></path></svg>`; btn.onclick = () => handleInstantCopy(btn); btnGroup.prepend(btn); }
+        // 1. '복사 설정' 버튼을 추가할 사이드바 메뉴 컨테이너를 찾습니다.
+        const menuContainer = await (new Promise(r => {
+            const i = setInterval(() => {
+                // '.css-uxwch2' 대신 '.scrollbar > .px-2'를 사용합니다.
+                const e = document.querySelector('.scrollbar > .px-2');
+                if (e) { clearInterval(i); r(e); }
+            }, 100);
+        }));
+
+        if (menuContainer && !document.getElementById('custom-copy-settings-button')) {
+            const btn = document.createElement('div');
+            btn.id = 'custom-copy-settings-button';
+            btn.className = 'css-1dib65l'; // 이 클래스는 더 이상 유효하지 않을 수 있으나 구조상 유지합니다.
+            btn.style.cssText = "display: flex; cursor: pointer; padding: 10px;";
+            btn.innerHTML = `<p class="css-1xke5yy"><span style="padding-right: 6px;">📋</span>복사 설정</p>`;
+            btn.onclick = showSettingsModal;
+            menuContainer.appendChild(btn);
+        }
+
+        // 2. '즉시 복사' 버튼을 추가할 채팅 입력창 근처 버튼 그룹을 찾습니다.
+        const btnGroup = await (new Promise(r => {
+            const i = setInterval(() => {
+                // '.css-fhxiwe' 대신 채팅 입력창 좌측 버튼들의 컨테이너를 찾습니다.
+                const e = document.querySelector('div.flex.items-center.justify-between > div.flex.items-center.space-x-2');
+                if (e) { clearInterval(i); r(e); }
+            }, 100);
+        }));
+
+        if (btnGroup && !document.getElementById('instant-copy-button')) {
+            const btn = document.createElement('button');
+            btn.id = 'instant-copy-button';
+            btn.className = 'css-8xk5x8 eh9908w0'; // 이 클래스는 더 이상 유효하지 않을 수 있으나 구조상 유지합니다.
+            btn.style.cssText = "cursor: pointer; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;";
+            btn.title = "저장된 설정으로 즉시 복사";
+            btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" fill="var(--icon_tertiary)" viewBox="0 0 24 24" width="18" height="18"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"></path></svg>`;
+            btn.onclick = () => handleInstantCopy(btn);
+            btnGroup.prepend(btn);
+        }
     }
-    new MutationObserver(() => { if (document.querySelector('.css-uxwch2') && document.querySelector('.css-fhxiwe')) { createButtons(); } }).observe(document.body, { childList: true, subtree: true });
+
+    new MutationObserver(() => {
+        // 수정된 선택자로 버튼이 나타날 컨테이너를 감지합니다.
+        if (document.querySelector('.scrollbar > .px-2') && document.querySelector('div.flex.items-center.justify-between > div.flex.items-center.space-x-2')) {
+            createButtons();
+        }
+    }).observe(document.body, { childList: true, subtree: true });
 
 })();
