@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         crack text copy
 // @namespace    http://tampermonkey.net/
-// @version      2.1
+// @version      2.11
 // @description  사용자 프롬프트와 함께 채팅로그를 복사
 // @author       뤼붕이
 // @match        https://crack.wrtn.ai/stories/*/episodes/*
@@ -65,7 +65,8 @@
 
     function getCookie(name) {
         const value = `; ${document.cookie}`; const parts = value.split(`; ${name}=`);
-        if (parts.length === 2) return parts.pop().split(';').shift();
+        if (parts.length === 2) return decodeURIComponent(parts.pop().split(';').shift());
+        return null;
     }
 
     function apiRequest(url, token) {
@@ -94,17 +95,13 @@
         const { chatroomId } = getUrlInfo();
         if (!t || !chatroomId) throw new Error('채팅방 정보를 읽을 수 없습니다.');
 
-        // 1. 필요한 모든 기본 정보 호출
         const [cD, mD, profileInfo] = await Promise.all([
             apiRequest(`${API_BASE}/crack-gen/v3/chats/${chatroomId}`, t),
             apiRequest(`${API_BASE}/crack-gen/v3/chats/${chatroomId}/messages?limit=${l}`, t),
             apiRequest(`${API_BASE}/crack-api/profiles`, t)
         ]);
 
-        // 2. 유저노트 추출 (cD.story.userNote.content)
         const userNote = cD?.story?.userNote?.content || "";
-
-        // 3. 페르소나 추출 (cD.chatProfile._id 경로만 사용)
         let userPersona = { name: null, information: null };
         try {
             if (profileInfo?._id) {
@@ -112,14 +109,10 @@
                 const list = personaRes?.chatProfiles || [];
                 const activeId = cD?.chatProfile?._id;
                 const p = list.find(i => i._id === activeId) || list.find(i => i.isRepresentative) || list[0];
-
-                if (p) {
-                    userPersona = { name: p.name, information: p.information };
-                }
+                if (p) { userPersona = { name: p.name, information: p.information }; }
             }
         } catch (e) { console.error("페르소나 파싱 실패:", e); }
 
-        // 4. 메시지 로그 추출
         const messages = (mD?.messages || []).reverse().map(m => ({
             role: m.role === 'assistant' ? 'assistant' : 'user',
             content: m.content
@@ -129,7 +122,7 @@
     }
 
     // ===================================================================================
-    // PART 4: UI 생성 및 이벤트 처리
+    // PART 4: UI 생성 및 이벤트 처리 (선택자 업데이트)
     // ===================================================================================
     function createCopyConfirmationUI(textToCopy, originalButton) {
         if (document.getElementById('copy-confirmation-overlay')) return;
@@ -175,39 +168,25 @@
     }
 
     async function createButtons() {
-        // 1. '복사 설정' 버튼을 추가할 사이드바 메뉴 컨테이너를 찾습니다.
-        const menuContainer = await (new Promise(r => {
-            const i = setInterval(() => {
-                // '.css-uxwch2' 대신 '.scrollbar > .px-2'를 사용합니다.
-                const e = document.querySelector('.scrollbar > .px-2');
-                if (e) { clearInterval(i); r(e); }
-            }, 100);
-        }));
-
+        // [수정됨] '복사 설정' 버튼을 추가할 사이드바 메뉴 컨테이너 선택자 변경
+        const menuContainer = await waitForElement('.py-4.overflow-y-auto.scrollbar > .px-2:first-of-type');
         if (menuContainer && !document.getElementById('custom-copy-settings-button')) {
             const btn = document.createElement('div');
             btn.id = 'custom-copy-settings-button';
-            btn.className = 'css-1dib65l'; // 이 클래스는 더 이상 유효하지 않을 수 있으나 구조상 유지합니다.
-            btn.style.cssText = "display: flex; cursor: pointer; padding: 10px;";
-            btn.innerHTML = `<p class="css-1xke5yy"><span style="padding-right: 6px;">📋</span>복사 설정</p>`;
+            // [수정됨] 새로운 UI에 맞는 클래스와 인라인 스타일 적용
+            btn.className = 'px-2.5 h-4 box-content py-[18px]';
+            btn.innerHTML = `<button class="w-full flex h-4 items-center justify-between typo-110-16-med space-x-2 [&amp;_svg]:fill-icon_tertiary ring-offset-4 ring-offset-sidebar" style="cursor: pointer;"><span class="flex space-x-2 items-center"><span style="font-size: 16px;">📋</span><span class="whitespace-nowrap overflow-hidden text-ellipsis typo-text-sm_leading-none_medium">복사 설정</span></span></button>`;
             btn.onclick = showSettingsModal;
             menuContainer.appendChild(btn);
         }
 
-        // 2. '즉시 복사' 버튼을 추가할 채팅 입력창 근처 버튼 그룹을 찾습니다.
-        const btnGroup = await (new Promise(r => {
-            const i = setInterval(() => {
-                // '.css-fhxiwe' 대신 채팅 입력창 좌측 버튼들의 컨테이너를 찾습니다.
-                const e = document.querySelector('div.flex.items-center.justify-between > div.flex.items-center.space-x-2');
-                if (e) { clearInterval(i); r(e); }
-            }, 100);
-        }));
-
+        // [수정됨] '즉시 복사' 버튼을 추가할 컨테이너 선택자 변경
+        const btnGroup = await waitForElement('.flex.items-center.space-x-2');
         if (btnGroup && !document.getElementById('instant-copy-button')) {
             const btn = document.createElement('button');
             btn.id = 'instant-copy-button';
-            btn.className = 'css-8xk5x8 eh9908w0'; // 이 클래스는 더 이상 유효하지 않을 수 있으나 구조상 유지합니다.
-            btn.style.cssText = "cursor: pointer; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;";
+            // [수정됨] 새로운 UI의 버튼 스타일에 맞는 클래스 적용
+            btn.className = 'relative inline-flex items-center gap-1 rounded-full text-sm font-medium leading-none transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-focus disabled:pointer-events-none disabled:opacity-50 [&_svg]:size-4 [&_svg]:fill-current min-w-7 border border-border bg-card text-gray-1 hover:bg-secondary p-0 size-7 justify-center';
             btn.title = "저장된 설정으로 즉시 복사";
             btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" fill="var(--icon_tertiary)" viewBox="0 0 24 24" width="18" height="18"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"></path></svg>`;
             btn.onclick = () => handleInstantCopy(btn);
@@ -215,11 +194,28 @@
         }
     }
 
-    new MutationObserver(() => {
-        // 수정된 선택자로 버튼이 나타날 컨테이너를 감지합니다.
-        if (document.querySelector('.scrollbar > .px-2') && document.querySelector('div.flex.items-center.justify-between > div.flex.items-center.space-x-2')) {
-            createButtons();
+    function waitForElement(selector) {
+        return new Promise(resolve => {
+            const interval = setInterval(() => {
+                const element = document.querySelector(selector);
+                if (element) {
+                    clearInterval(interval);
+                    resolve(element);
+                }
+            }, 100);
+        });
+    }
+
+    const observer = new MutationObserver(() => {
+        // [수정됨] 새로운 선택자를 사용하여 버튼 컨테이너를 감지
+        if (!document.getElementById('custom-copy-settings-button') || !document.getElementById('instant-copy-button')) {
+             createButtons();
         }
-    }).observe(document.body, { childList: true, subtree: true });
+    });
+
+    waitForElement('body').then(body => {
+        observer.observe(body, { childList: true, subtree: true });
+        createButtons();
+    });
 
 })();
