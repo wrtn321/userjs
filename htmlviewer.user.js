@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         크랙 html 저장
 // @namespace    http://tampermonkey.net/
-// @version      2.0
+// @version      2.1
 // @description  채팅로그를 읽기 전용 HTML로 저장합니다.
 // @author       뤼붕이
 // @match        https://crack.wrtn.ai/stories/*/episodes/*
@@ -207,7 +207,8 @@
     }
 
     async function createMenuButton() {
-        const container = document.querySelector('.css-uxwch2');
+        // '.css-uxwch2' 대신 '.scrollbar > .px-2'를 사용하도록 수정됨
+        const container = document.querySelector('.scrollbar > .px-2');
         if (!container || document.getElementById('html-save-btn-v2-restore')) return;
 
         const btn = document.createElement('div');
@@ -233,7 +234,8 @@
         container.appendChild(btn);
     }
 
-    const observer = new MutationObserver(() => { if (document.querySelector('.css-uxwch2')) createMenuButton(); });
+    // 관찰자(observer)의 선택자도 '.scrollbar > .px-2'로 수정됨
+    const observer = new MutationObserver(() => { if (document.querySelector('.scrollbar > .px-2')) createMenuButton(); });
     observer.observe(document.body, { childList: true, subtree: true });
 
 })();
