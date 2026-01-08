@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         크랙 html 저장
 // @namespace    http://tampermonkey.net/
-// @version      2.1
+// @version      2.11
 // @description  채팅로그를 읽기 전용 HTML로 저장합니다.
 // @author       뤼붕이
 // @match        https://crack.wrtn.ai/stories/*/episodes/*
@@ -16,7 +16,7 @@
     'use strict';
 
     // ===================================================================================
-    // PART 1: UI 및 HTML 생성 로직
+    // PART 1: UI 및 HTML 생성 로직 
     // ===================================================================================
     function generateFullHtmlPage(chatData) {
         function escapeHtml(unsafe) { if (typeof unsafe !== 'string') return ''; return unsafe.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;"); }
@@ -208,36 +208,79 @@
         document.body.appendChild(a); a.click(); document.body.removeChild(a);
     }
 
+    // ===================================================================================
+    // PART 3: 스크립트 실행 (선택자 업데이트)
+    // ===================================================================================
+
+    function waitForElement(selector) {
+        return new Promise(resolve => {
+            if (document.querySelector(selector)) {
+                return resolve(document.querySelector(selector));
+            }
+            const observer = new MutationObserver(() => {
+                if (document.querySelector(selector)) {
+                    observer.disconnect();
+                    resolve(document.querySelector(selector));
+                }
+            });
+            observer.observe(document.body, { childList: true, subtree: true });
+        });
+    }
+
     async function createMenuButton() {
-        // '.css-uxwch2' 대신 '.scrollbar > .px-2'를 사용하도록 수정됨
-        const container = document.querySelector('.scrollbar > .px-2');
+        // [수정됨] 버튼을 추가할 컨테이너의 선택자를 새 UI 구조에 맞게 변경
+        const container = await waitForElement('.py-4.overflow-y-auto.scrollbar > .px-2:first-of-type');
         if (!container || document.getElementById('html-save-btn-v2-restore')) return;
 
-        const btn = document.createElement('div');
-        btn.id = 'html-save-btn-v2-restore';
-        btn.className = 'css-1dib65l';
-        btn.style.cssText = "display: flex; cursor: pointer; padding: 10px;";
-        btn.innerHTML = `<p class="css-1xke5yy"><span style="padding-right: 6px;">📄</span>HTML 저장</p>`;
+        const btnWrapper = document.createElement('div');
+        btnWrapper.id = 'html-save-btn-v2-restore';
+        // [수정됨] 새로운 UI 디자인에 맞는 클래스 적용
+        btnWrapper.className = 'px-2.5 h-4 box-content py-[18px]';
+        btnWrapper.innerHTML = `
+            <button class="w-full flex h-4 items-center justify-between typo-110-16-med space-x-2 [&amp;_svg]:fill-icon_tertiary ring-offset-4 ring-offset-sidebar" style="cursor: pointer;">
+                <span class="flex space-x-2 items-center">
+                    <span style="font-size: 16px;">📄</span>
+                    <span class="btn-text whitespace-nowrap overflow-hidden text-ellipsis typo-text-sm_leading-none_medium">HTML 저장</span>
+                </span>
+            </button>
+        `;
 
-        btn.onclick = async () => {
-            const p = btn.querySelector('p'); const original = p.innerHTML;
+        btnWrapper.onclick = async () => {
+            const btnText = btnWrapper.querySelector('.btn-text');
+            const originalText = btnText.textContent;
             try {
-                p.textContent = '불러오는 중...'; btn.style.pointerEvents = 'none';
+                btnText.textContent = '불러오는 중...';
+                btnWrapper.style.pointerEvents = 'none';
                 const chatData = await fetchAllChatData();
                 const finalHtml = generateFullHtmlPage(chatData);
                 downloadFile(finalHtml, `${chatData.title.replace(/[\\/:*?"<>|]/g, '')}.html`);
-                p.textContent = '저장 완료!';
-                setTimeout(() => { p.innerHTML = original; btn.style.pointerEvents = 'auto'; }, 2000);
+                btnText.textContent = '저장 완료!';
+                setTimeout(() => {
+                    btnText.textContent = originalText;
+                    btnWrapper.style.pointerEvents = 'auto';
+                }, 2000);
             } catch (e) {
                 alert(`오류 발생: ${e.message}`);
-                p.innerHTML = original; btn.style.pointerEvents = 'auto';
+                btnText.textContent = originalText;
+                btnWrapper.style.pointerEvents = 'auto';
             }
         };
-        container.appendChild(btn);
+        // '채팅방 설정' 메뉴 그룹의 하단에 버튼을 추가합니다.
+        container.appendChild(btnWrapper);
     }
 
-    // 관찰자(observer)의 선택자도 '.scrollbar > .px-2'로 수정됨
-    const observer = new MutationObserver(() => { if (document.querySelector('.scrollbar > .px-2')) createMenuButton(); });
-    observer.observe(document.body, { childList: true, subtree: true });
+    // 스크립트 시작
+    // 페이지가 완전히 로드된 후 버튼 생성을 시도합니다.
+    window.addEventListener('load', () => {
+        createMenuButton();
+
+        // 페이지 이동 등으로 인해 UI가 다시 렌더링될 경우를 대비해 MutationObserver를 사용합니다.
+        const observer = new MutationObserver(() => {
+            if (!document.getElementById('html-save-btn-v2-restore')) {
+                createMenuButton();
+            }
+        });
+        observer.observe(document.body, { childList: true, subtree: true });
+    });
 
 })();
