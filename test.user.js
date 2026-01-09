@@ -1,20 +1,21 @@
 // ==UserScript==
 // @name         test
 // @namespace    http://tampermonkey.net/
-// @version      2.2
+// @version      2.21
 // @description  뤼튼 크랙의 채팅 로그를 선택하여 캡쳐 (UI 업데이트, 너비 계산, SPA 네비게이션 수정)
 // @author       뤼붕이
 // @match        https://crack.wrtn.ai/stories/*/episodes/*
-// @downloadURL  https://github.com/wrtn321/userjs/raw/refs/heads/main/chatcapture.user.js
-// @updateURL    https://github.com/wrtn321/userjs/raw/refs/heads/main/chatcapture.user.js
+// @downloadURL  https://github.com/wrtn321/userjs/raw/refs/heads/main/test.user.js
+// @updateURL    https://github.com/wrtn321/userjs/raw/refs/heads/main/test.user.js
 // @grant        GM_addStyle
 // @require      https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js
 // @license      MIT
-// ==/UserScript==
+// ==UserScript==
 
 (function() {
     'use strict';
 
+    // (PART 1, 2는 이전 버전과 동일하여 생략합니다)
     // ===================================================================================
     // PART 1: 설정 관리 (수정 없음)
     // ===================================================================================
@@ -107,7 +108,7 @@
 
 
     // ===================================================================================
-    // PART 3: 캡쳐 로직 (너비 계산 수정 반영)
+    // PART 3: 캡쳐 로직 (요청사항 반영하여 수정됨)
     // ===================================================================================
     function hideKeywordsInElement(element, keywords) {
         if (!element || !keywords || keywords.length === 0) return;
@@ -146,17 +147,32 @@
         btn.disabled = true;
         try {
             const config = ConfigManager.getConfig();
-            const captureArea = document.createElement('div');
-            const PADDING_VALUE = 20;
-            captureArea.style.padding = `${PADDING_VALUE}px`;
-            captureArea.style.boxSizing = 'border-box';
+            const captureArea = document.createElement('div'); // 전체 캡쳐 영역 (도화지)
+            const PADDING_VALUE = 20; // 좌, 우, 아래 여백 값
 
+            // ========================= ★★★ 수정된 부분 ★★★ =========================
+
+            // 1. 위쪽 여백(padding) 제거
+            // padding: [위] [좌우] [아래]; 순서입니다.
+            captureArea.style.padding = `0 ${PADDING_VALUE}px ${PADDING_VALUE}px`;
+
+            // 2. 너비 계산에서 padding*2 제거
+            // 이제 도화지의 너비는 실제 대화창 너비와 거의 같아집니다.
             const chatContainer = document.querySelector('div.stick-to-bottom');
-
             if (chatContainer) {
+                // 이전: chatContainer.clientWidth + (PADDING_VALUE * 2)
                 captureArea.style.width = `${chatContainer.clientWidth}px`;
             }
 
+            // 3. 내용을 10px 위로 올리기 위한 '래퍼(wrapper)' 생성
+            // 모든 대화 내용을 이 'contentWrapper' 안에 넣은 뒤, 이 상자 자체를 위로 올립니다.
+            const contentWrapper = document.createElement('div');
+            contentWrapper.style.position = 'relative'; // 위치를 수동으로 조절하기 위한 설정
+            contentWrapper.style.top = '-10px';      // 현재 위치에서 10px 위로 이동
+
+            // =======================================================================
+
+            captureArea.style.boxSizing = 'border-box';
             const bgColor = window.getComputedStyle(document.body).backgroundColor;
             captureArea.style.backgroundColor = bgColor;
 
@@ -186,10 +202,15 @@
                     clone.style.marginBottom = '20px';
                 }
 
-                captureArea.appendChild(clone);
+                // ★★★ 수정: 이제 도화지(captureArea)가 아닌, 위치 조절용 상자(contentWrapper)에 대화를 넣습니다.
+                contentWrapper.appendChild(clone);
             });
 
+            // ★★★ 추가: 완성된 내용물 상자를 최종 도화지에 넣습니다.
+            captureArea.appendChild(contentWrapper);
+
             if (config.hiddenKeywords && config.hiddenKeywords.length > 0) {
+                // 숨김 처리 대상은 이제 contentWrapper가 아닌, 그 부모인 captureArea 전체로 합니다.
                 hideKeywordsInElement(captureArea, config.hiddenKeywords);
             }
 
@@ -209,7 +230,7 @@
     }
 
     // ===================================================================================
-    // PART 3-1: 다운로드 및 보조 함수 (수정 없음)
+    // PART 3-1 & 4 (수정 없음)
     // ===================================================================================
     function downloadImage(dataUrl, format) {
         let fileName = ConfigManager.getConfig().fileName;
@@ -237,54 +258,34 @@
         });
     }
 
-    // ===================================================================================
-    // PART 4: 스크립트 실행 및 페이지 이동 감지 (SPA 대응)
-    // ===================================================================================
-    // 크랙 사이트는 페이지 이동 시 화면 전체를 새로고침하지 않고 내용만 바꾸는 SPA(Single Page Application) 방식입니다.
-    // 따라서, 다른 채팅방으로 이동하는 것을 감지하여 버튼과 체크박스를 다시 생성해주는 로직이 필요합니다.
-    // 아래 코드는 URL의 변경을 감지하여 페이지가 바뀔 때마다 스크립트가 새로 실행되도록 만듭니다.
-
-    let chatObserver = null; // 채팅 메시지 감지 옵저버를 전역 변수로 관리
-
+    let chatObserver = null;
     function initializeScript() {
-        // 기존 옵저버가 있다면 연결을 끊어 중복 실행을 방지
         if (chatObserver) {
             chatObserver.disconnect();
         }
-
-        // 채팅 메시지가 추가/변경될 때를 감지하는 새 옵저버 생성
         chatObserver = new MutationObserver(() => {
             if (!document.getElementById('capture-settings-button') || !document.getElementById('capture-action-button')) {
                 createButtons();
             }
             injectCheckboxes();
         });
-
-        // 실제 채팅 내용이 표시되는 영역을 기다림
         waitForElement('div.stick-to-bottom').then(chatArea => {
-            // 새로운 페이지의 채팅 영역을 감시 시작
             chatObserver.observe(chatArea, { childList: true, subtree: true });
-            // 현재 페이지에 대한 버튼 및 체크박스 최초 생성
             createButtons();
             injectCheckboxes();
         });
     }
 
-    // 페이지 이동(URL 변경)을 감지하는 메인 옵저버
     let lastUrl = location.href;
     const navigationObserver = new MutationObserver(() => {
         const currentUrl = location.href;
         if (currentUrl !== lastUrl) {
             lastUrl = currentUrl;
             console.log("페이지 이동 감지. 캡쳐 스크립트를 다시 실행합니다.");
-            initializeScript(); // URL이 변경되었으므로 스크립트 초기화 함수를 다시 호출
+            initializeScript();
         }
     });
-
-    // body 요소의 변경을 감시하여 페이지 이동을 감지
     navigationObserver.observe(document.body, { childList: true, subtree: true });
-
-    // 스크립트 최초 실행
     initializeScript();
 
 })();
