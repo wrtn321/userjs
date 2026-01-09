@@ -1,14 +1,14 @@
 // ==UserScript==
-// @name         test
+// @name         test (dom-to-image-more 적용 버전)
 // @namespace    http://tampermonkey.net/
-// @version      2.32
-// @description  뤼튼 크랙의 채팅 로그를 선택하여 캡쳐 (UI 업데이트, 너비 계산, SPA 네비게이션, 여백 및 위치 조정)
+// @version      2.6
+// @description  뤼튼 크랙의 채팅 로그를 선택하여 캡쳐 (UI 업데이트, SPA 대응, 체크박스 우측 정렬, 텍스트 위치 조정, 캡쳐 엔진 변경)
 // @author       뤼붕이
 // @match        https://crack.wrtn.ai/stories/*/episodes/*
-// @downloadURL  https://github.com/wrtn321/userjs/raw/refs/heads/main/test.user.js
-// @updateURL    https://github.com/wrtn321/userjs/raw/refs/heads/main/test.user.js
+// @downloadURL  https://github.com/wrtn321/userjs/raw/refs/heads/main/chatcapture.user.js
+// @updateURL    https://github.com/wrtn321/userjs/raw/refs/heads/main/chatcapture.user.js
 // @grant        GM_addStyle
-// @require      https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js
+// @require      https://cdn.jsdelivr.net/npm/dom-to-image-more@3.3.0/dist/dom-to-image-more.min.js
 // @license      MIT
 // ==/UserScript==
 
@@ -31,7 +31,7 @@
     }
 
     // ===================================================================================
-    // PART 2: UI 생성 및 관리 (체크박스 위치 수정)
+    // PART 2: UI 생성 및 관리 (수정 없음)
     // ===================================================================================
 
     /**
@@ -99,7 +99,7 @@
         let localConfig = ConfigManager.getConfig();
         const isDark = document.body.dataset.theme === 'dark';
         const c = { bg: isDark ? '#2c2c2e' : '#ffffff', text: isDark ? '#e0e0e0' : '#333333', border: isDark ? '#444444' : '#cccccc', inputBg: isDark ? '#3a3a3c' : '#f0f0f0', btn: isDark ? '#0a84ff' : '#007aff', delBtn: isDark ? '#ff453a' : '#ff3b30', btnTxt: '#ffffff' };
-        const modalHTML = `<div id="capture-settings-modal" style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:9999;display:flex;justify-content:center;align-items:center;"><div style="background:${c.bg};color:${c.text};padding:24px;border-radius:12px;width:90%;max-width:600px;display:flex;flex-direction:column;gap:20px;max-height: 90vh;"><div style="display:flex;justify-content:space-between;align-items:center;"><h2 style="margin:0;font-size:1.4em;font-weight:600;">📸 캡쳐 설정</h2><button id="capture-modal-close" style="background:none;border:none;color:${c.text};font-size:1.5em;cursor:pointer;">&times;</button></div><div style="display:flex; gap: 10px; flex-wrap: wrap;"><div style="flex: 1 1 200px;"><label style="display:block; margin-bottom: 8px;">파일 이름:</label><input id="capture-filename" type="text" value="${localConfig.fileName}" style="width:100%;padding:10px;border:1px solid ${c.border};border-radius:6px;background:${c.inputBg};color:${c.text};box-sizing: border-box;"></div><div style="flex: 1 1 200px;"><label style="display:block; margin-bottom: 8px;">이미지 형식:</label><select id="capture-format" style="width:100%;padding:10px;border:1px solid ${c.border};border-radius:6px;background:${c.inputBg};color:${c.text};box-sizing: border-box;"><option value="jpeg" ${localConfig.imageFormat === 'jpeg' ? 'selected' : ''}>JPG</option><option value="png" ${localConfig.imageFormat === 'png' ? 'selected' : ''}>PNG</option><option value="webp" ${localConfig.imageFormat === 'webp' ? 'selected' : ''}>WEBP</option></select></div></div><div style="display: flex; align-items: center; padding-bottom: 10px; border-bottom: 1px solid ${c.border};"><input type="checkbox" id="capture-high-quality" style="width: 16px; height: 16px; margin-right: 8px;"><label for="capture-high-quality" style="cursor: pointer; user-select: none;">고화질(용량증가)</label></div><div><label style="display:block; margin-bottom: 8px;">단어 숨김 규칙:</label><div id="hidden-keyword-list" style="max-height: 150px; overflow-y: auto; border: 1px solid ${c.border}; border-radius: 6px; padding: 10px; margin-bottom: 10px;"></div><div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;"><input id="hidden-keyword-input" type="text" placeholder="숨길 키워드 등록" style="flex:1; padding:10px; border:1px solid ${c.border}; border-radius:6px; background:${c.inputBg}; color:${c.text}; box-sizing: border-box;"><button id="add-hidden-keyword" style="padding:10px; background:${c.btn}; color:${c.btnTxt}; border:none; border-radius:6px; cursor:pointer; min-width: 40px;">+</button></div></div><div style="text-align: right; border-top: 1px solid ${c.border}; padding-top: 20px;"><button id="capture-modal-save" style="padding:10px 20px;background:${c.btn};color:${c.btnTxt};border:none;border-radius:8px;cursor:pointer;font-size:1em;">저장</button></div></div></div>`;
+        const modalHTML = `<div id="capture-settings-modal" style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:9999;display:flex;justify-content:center;align-items:center;"><div style="background:${c.bg};color:${c.text};padding:24px;border-radius:12px;width:90%;max-width:600px;display:flex;flex-direction:column;gap:20px;max-height: 90vh;"><div style="display:flex;justify-content:space-between;align-items:center;"><h2 style="margin:0;font-size:1.4em;font-weight:600;">📸 캡쳐 설정</h2><button id="capture-modal-close" style="background:none;border:none;color:${c.text};font-size:1.5em;cursor:pointer;">&times;</button></div><div style="display:flex; gap: 10px; flex-wrap: wrap;"><div style="flex: 1 1 200px;"><label style="display:block; margin-bottom: 8px;">파일 이름:</label><input id="capture-filename" type="text" value="${localConfig.fileName}" style="width:100%;padding:10px;border:1px solid ${c.border};border-radius:6px;background:${c.inputBg};color:${c.text};box-sizing: border-box;"></div><div style="flex: 1 1 200px;"><label style="display:block; margin-bottom: 8px;">이미지 형식:</label><select id="capture-format" style="width:100%;padding:10px;border:1px solid ${c.border};border-radius:6px;background:${c.inputBg};color:${c.text};box-sizing: border-box;"><option value="jpeg" ${localConfig.imageFormat === 'jpeg' ? 'selected' : ''}>JPG</option><option value="png" ${localConfig.imageFormat === 'png' ? 'selected' : ''}>PNG</option><option value="webp" ${localConfig.imageFormat === 'webp' ? 'selected' : ''}>WEBP (PNG로 저장됨)</option></select></div></div><div style="display: flex; align-items: center; padding-bottom: 10px; border-bottom: 1px solid ${c.border};"><input type="checkbox" id="capture-high-quality" style="width: 16px; height: 16px; margin-right: 8px;"><label for="capture-high-quality" style="cursor: pointer; user-select: none;">고화질(용량증가)</label></div><div><label style="display:block; margin-bottom: 8px;">단어 숨김 규칙:</label><div id="hidden-keyword-list" style="max-height: 150px; overflow-y: auto; border: 1px solid ${c.border}; border-radius: 6px; padding: 10px; margin-bottom: 10px;"></div><div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;"><input id="hidden-keyword-input" type="text" placeholder="숨길 키워드 등록" style="flex:1; padding:10px; border:1px solid ${c.border}; border-radius:6px; background:${c.inputBg}; color:${c.text}; box-sizing: border-box;"><button id="add-hidden-keyword" style="padding:10px; background:${c.btn}; color:${c.btnTxt}; border:none; border-radius:6px; cursor:pointer; min-width: 40px;">+</button></div></div><div style="text-align: right; border-top: 1px solid ${c.border}; padding-top: 20px;"><button id="capture-modal-save" style="padding:10px 20px;background:${c.btn};color:${c.btnTxt};border:none;border-radius:8px;cursor:pointer;font-size:1em;">저장</button></div></div></div>`;
         document.body.insertAdjacentHTML("beforeend", modalHTML);
         document.getElementById('capture-high-quality').checked = !!localConfig.highQualityCapture;
 
@@ -120,7 +120,7 @@
 
 
     // ===================================================================================
-    // PART 3: 캡쳐 로직 (텍스트 위치 조정 방식 수정)
+    // PART 3: 캡쳐 로직 (dom-to-image-more로 교체됨)
     // ===================================================================================
     function hideKeywordsInElement(element, keywords) {
         if (!element || !keywords || keywords.length === 0) return;
@@ -176,18 +176,11 @@
                 const clone = msg.cloneNode(true);
                 clone.querySelector('.capture-checkbox-container')?.remove();
 
-                // ========================= ★★★ 수정된 부분 ★★★ =========================
-                //
-                // 텍스트를 위로 올리는 방식을 `position` 속성을 이용하는 것으로 변경합니다.
                 const textBlock = clone.querySelector('.prose');
                 if (textBlock) {
-                    // 1. 위치를 수동으로 조절하기 위해 `relative`로 설정합니다.
                     textBlock.style.position = 'relative';
-                    // 2. 원래 있어야 할 위치보다 `top`에서 -10px, 즉 10px 위로 올립니다.
                     textBlock.style.top = '-10px';
                 }
-                //
-                // =======================================================================
 
                 clone.querySelectorAll('pre.shiki').forEach(codeBlock => {
                     const plainText = codeBlock.innerText;
@@ -223,15 +216,50 @@
             captureArea.style.left = '-9999px';
             captureArea.style.top = '0px';
 
-            const canvasOptions = { useCORS: true, backgroundColor: bgColor, logging: false };
-            if (config.highQualityCapture) { canvasOptions.scale = 2; }
+            // ========================= ★★★ dom-to-image-more 캡쳐 로직 ★★★ =========================
+            let dataUrl;
+            let finalFormat = config.imageFormat;
+            const options = { bgcolor: bgColor };
 
-            const canvas = await html2canvas(captureArea, canvasOptions);
+            // 고화질 옵션 처리 (2배 크기로 캡쳐)
+            if (config.highQualityCapture) {
+                options.width = captureArea.clientWidth * 2;
+                options.height = captureArea.clientHeight * 2;
+                options.style = {
+                    'transform': 'scale(2)',
+                    'transform-origin': 'top left'
+                };
+            }
+
+            // dom-to-image-more는 webp를 직접 지원하지 않으므로 png로 대체합니다.
+            if (finalFormat === 'webp') {
+                finalFormat = 'png';
+            }
+
+            switch (finalFormat) {
+                case 'jpeg':
+                    options.quality = config.highQualityCapture ? 1.0 : 0.95;
+                    dataUrl = await domtoimage.toJpeg(captureArea, options);
+                    break;
+                case 'png':
+                default:
+                    dataUrl = await domtoimage.toPng(captureArea, options);
+                    break;
+            }
 
             document.body.removeChild(captureArea);
-            downloadImage(canvas.toDataURL(`image/${config.imageFormat}`, 1.0), config.imageFormat);
-        } catch (error) { console.error('캡쳐 중 오류 발생:', error); alert('캡쳐에 실패했습니다. 콘솔을 확인해주세요.'); } finally { btn.innerHTML = originalContent; btn.disabled = false; }
+            downloadImage(dataUrl, finalFormat);
+            // ======================================================================================
+
+        } catch (error) {
+            console.error('캡쳐 중 오류 발생:', error);
+            alert('캡쳐에 실패했습니다. 콘솔을 확인해주세요.');
+        } finally {
+            btn.innerHTML = originalContent;
+            btn.disabled = false;
+        }
     }
+
 
     // ===================================================================================
     // PART 3-1 & 4 (수정 없음)
