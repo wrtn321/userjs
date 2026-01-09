@@ -1,10 +1,12 @@
 // ==UserScript==
 // @name         test
 // @namespace    http://tampermonkey.net/
-// @version      2.3
-// @description  뤼튼 크랙의 채팅 로그를 선택하여 캡쳐 (UI 업데이트, 너비 계산, SPA 네비게이션, 여백 제거)
+// @version      2.2
+// @description  뤼튼 크랙의 채팅 로그를 선택하여 캡쳐 (UI 업데이트, 너비 계산, SPA 네비게이션 수정)
 // @author       뤼붕이
 // @match        https://crack.wrtn.ai/stories/*/episodes/*
+// @downloadURL  https://github.com/wrtn321/userjs/raw/refs/heads/main/chatcapture.user.js
+// @updateURL    https://github.com/wrtn321/userjs/raw/refs/heads/main/chatcapture.user.js
 // @grant        GM_addStyle
 // @require      https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js
 // @license      MIT
@@ -14,7 +16,7 @@
     'use strict';
 
     // ===================================================================================
-    // PART 1: 설정 관리
+    // PART 1: 설정 관리 (수정 없음)
     // ===================================================================================
     class ConfigManager {
         static getConfig() {
@@ -29,7 +31,7 @@
     }
 
     // ===================================================================================
-    // PART 2: UI 생성 및 관리
+    // PART 2: UI 생성 및 관리 (수정 없음)
     // ===================================================================================
     function injectCheckboxes() {
         document.querySelectorAll('div[data-message-group-id]').forEach(group => {
@@ -105,7 +107,7 @@
 
 
     // ===================================================================================
-    // PART 3: 캡쳐 로직
+    // PART 3: 캡쳐 로직 (너비 계산 수정 반영)
     // ===================================================================================
     function hideKeywordsInElement(element, keywords) {
         if (!element || !keywords || keywords.length === 0) return;
@@ -145,14 +147,13 @@
         try {
             const config = ConfigManager.getConfig();
             const captureArea = document.createElement('div');
-            // 이미지의 여백을 없애기 위해 box-sizing만 설정
+            const PADDING_VALUE = 20;
+            captureArea.style.padding = `${PADDING_VALUE}px`;
             captureArea.style.boxSizing = 'border-box';
 
-            // 너비를 가져올 컨테이너를 실제 대화 내용이 표시되는 영역으로 선택
             const chatContainer = document.querySelector('div.stick-to-bottom');
 
             if (chatContainer) {
-                // 너비를 계산할 때 여백 값을 더하지 않고, 컨테이너의 너비와 동일하게 설정
                 captureArea.style.width = `${chatContainer.clientWidth}px`;
             }
 
@@ -208,7 +209,7 @@
     }
 
     // ===================================================================================
-    // PART 3-1: 다운로드 및 보조 함수
+    // PART 3-1: 다운로드 및 보조 함수 (수정 없음)
     // ===================================================================================
     function downloadImage(dataUrl, format) {
         let fileName = ConfigManager.getConfig().fileName;
@@ -239,13 +240,19 @@
     // ===================================================================================
     // PART 4: 스크립트 실행 및 페이지 이동 감지 (SPA 대응)
     // ===================================================================================
-    let chatObserver = null;
+    // 크랙 사이트는 페이지 이동 시 화면 전체를 새로고침하지 않고 내용만 바꾸는 SPA(Single Page Application) 방식입니다.
+    // 따라서, 다른 채팅방으로 이동하는 것을 감지하여 버튼과 체크박스를 다시 생성해주는 로직이 필요합니다.
+    // 아래 코드는 URL의 변경을 감지하여 페이지가 바뀔 때마다 스크립트가 새로 실행되도록 만듭니다.
+
+    let chatObserver = null; // 채팅 메시지 감지 옵저버를 전역 변수로 관리
 
     function initializeScript() {
+        // 기존 옵저버가 있다면 연결을 끊어 중복 실행을 방지
         if (chatObserver) {
             chatObserver.disconnect();
         }
 
+        // 채팅 메시지가 추가/변경될 때를 감지하는 새 옵저버 생성
         chatObserver = new MutationObserver(() => {
             if (!document.getElementById('capture-settings-button') || !document.getElementById('capture-action-button')) {
                 createButtons();
@@ -253,25 +260,31 @@
             injectCheckboxes();
         });
 
+        // 실제 채팅 내용이 표시되는 영역을 기다림
         waitForElement('div.stick-to-bottom').then(chatArea => {
+            // 새로운 페이지의 채팅 영역을 감시 시작
             chatObserver.observe(chatArea, { childList: true, subtree: true });
+            // 현재 페이지에 대한 버튼 및 체크박스 최초 생성
             createButtons();
             injectCheckboxes();
         });
     }
 
+    // 페이지 이동(URL 변경)을 감지하는 메인 옵저버
     let lastUrl = location.href;
     const navigationObserver = new MutationObserver(() => {
         const currentUrl = location.href;
         if (currentUrl !== lastUrl) {
             lastUrl = currentUrl;
             console.log("페이지 이동 감지. 캡쳐 스크립트를 다시 실행합니다.");
-            initializeScript();
+            initializeScript(); // URL이 변경되었으므로 스크립트 초기화 함수를 다시 호출
         }
     });
 
+    // body 요소의 변경을 감시하여 페이지 이동을 감지
     navigationObserver.observe(document.body, { childList: true, subtree: true });
 
+    // 스크립트 최초 실행
     initializeScript();
 
 })();
