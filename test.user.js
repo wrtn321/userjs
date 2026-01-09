@@ -1,14 +1,14 @@
 // ==UserScript==
-// @name         test (rasterizeHTML 적용 버전)
+// @name         test
 // @namespace    http://tampermonkey.net/
-// @version      2.7
-// @description  뤼튼 크랙의 채팅 로그를 선택하여 캡쳐 (UI 업데이트, SPA 대응, 체크박스 우측 정렬, 텍스트 위치 조정, 캡쳐 엔진 변경)
+// @version      2.32
+// @description  뤼튼 크랙의 채팅 로그를 선택하여 캡쳐 (UI 업데이트, 너비 계산, SPA 네비게이션, 여백 및 위치 조정)
 // @author       뤼붕이
 // @match        https://crack.wrtn.ai/stories/*/episodes/*
 // @downloadURL  https://github.com/wrtn321/userjs/raw/refs/heads/main/test.user.js
 // @updateURL    https://github.com/wrtn321/userjs/raw/refs/heads/main/test.user.js
 // @grant        GM_addStyle
-// @require      https://cdn.jsdelivr.net/npm/rasterizehtml@1.3.1/dist/rasterizeHTML.all.min.js
+// @require      https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js
 // @license      MIT
 // ==/UserScript==
 
@@ -31,7 +31,7 @@
     }
 
     // ===================================================================================
-    // PART 2: UI 생성 및 관리 (수정 없음)
+    // PART 2: UI 생성 및 관리 (체크박스 위치 수정)
     // ===================================================================================
 
     /**
@@ -50,14 +50,23 @@
             checkbox.style.cssText = 'width: 18px; height: 18px; cursor: pointer;';
             container.appendChild(checkbox);
 
+            // ========================= ★★★ 수정된 부분 ★★★ =========================
+            //
+            // 캐릭터/유저 대화 구분을 없애고 모든 체크박스를 우측 상단에 위치시킵니다.
+            // 1. container에 절대 위치 스타일을 적용합니다.
             container.style.position = 'absolute';
-            container.style.right = '8px';
-            container.style.top = '8px';
+            container.style.right = '8px'; // 오른쪽에서 8px 떨어지도록 조정
+            container.style.top = '8px';   // 위쪽에서 8px 떨어지도록 조정
             container.style.zIndex = '10';
 
+            // 2. 부모인 group에 relative 속성을 부여하여 container의 기준점이 되게 합니다.
             group.style.position = 'relative';
 
+            // 3. group의 맨 앞에 container를 추가합니다. (순서는 크게 상관없지만 일관성을 위해)
+            //    이렇게 하면 기존 메시지 내용 위에 체크박스가 올라가게 됩니다.
             group.prepend(container);
+            //
+            // =======================================================================
         });
     }
 
@@ -90,7 +99,7 @@
         let localConfig = ConfigManager.getConfig();
         const isDark = document.body.dataset.theme === 'dark';
         const c = { bg: isDark ? '#2c2c2e' : '#ffffff', text: isDark ? '#e0e0e0' : '#333333', border: isDark ? '#444444' : '#cccccc', inputBg: isDark ? '#3a3a3c' : '#f0f0f0', btn: isDark ? '#0a84ff' : '#007aff', delBtn: isDark ? '#ff453a' : '#ff3b30', btnTxt: '#ffffff' };
-        const modalHTML = `<div id="capture-settings-modal" style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:9999;display:flex;justify-content:center;align-items:center;"><div style="background:${c.bg};color:${c.text};padding:24px;border-radius:12px;width:90%;max-width:600px;display:flex;flex-direction:column;gap:20px;max-height: 90vh;"><div style="display:flex;justify-content:space-between;align-items:center;"><h2 style="margin:0;font-size:1.4em;font-weight:600;">📸 캡쳐 설정</h2><button id="capture-modal-close" style="background:none;border:none;color:${c.text};font-size:1.5em;cursor:pointer;">&times;</button></div><div style="display:flex; gap: 10px; flex-wrap: wrap;"><div style="flex: 1 1 200px;"><label style="display:block; margin-bottom: 8px;">파일 이름:</label><input id="capture-filename" type="text" value="${localConfig.fileName}" style="width:100%;padding:10px;border:1px solid ${c.border};border-radius:6px;background:${c.inputBg};color:${c.text};box-sizing: border-box;"></div><div style="flex: 1 1 200px;"><label style="display:block; margin-bottom: 8px;">이미지 형식:</label><select id="capture-format" style="width:100%;padding:10px;border:1px solid ${c.border};border-radius:6px;background:${c.inputBg};color:${c.text};box-sizing: border-box;"><option value="jpeg" ${localConfig.imageFormat === 'jpeg' ? 'selected' : ''}>JPG</option><option value="png" ${localConfig.imageFormat === 'png' ? 'selected' : ''}>PNG</option><option value="webp" ${localConfig.imageFormat === 'webp' ? 'selected' : ''}>WEBP (PNG로 저장됨)</option></select></div></div><div style="display: flex; align-items: center; padding-bottom: 10px; border-bottom: 1px solid ${c.border};"><input type="checkbox" id="capture-high-quality" style="width: 16px; height: 16px; margin-right: 8px;"><label for="capture-high-quality" style="cursor: pointer; user-select: none;">고화질(용량증가)</label></div><div><label style="display:block; margin-bottom: 8px;">단어 숨김 규칙:</label><div id="hidden-keyword-list" style="max-height: 150px; overflow-y: auto; border: 1px solid ${c.border}; border-radius: 6px; padding: 10px; margin-bottom: 10px;"></div><div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;"><input id="hidden-keyword-input" type="text" placeholder="숨길 키워드 등록" style="flex:1; padding:10px; border:1px solid ${c.border}; border-radius:6px; background:${c.inputBg}; color:${c.text}; box-sizing: border-box;"><button id="add-hidden-keyword" style="padding:10px; background:${c.btn}; color:${c.btnTxt}; border:none; border-radius:6px; cursor:pointer; min-width: 40px;">+</button></div></div><div style="text-align: right; border-top: 1px solid ${c.border}; padding-top: 20px;"><button id="capture-modal-save" style="padding:10px 20px;background:${c.btn};color:${c.btnTxt};border:none;border-radius:8px;cursor:pointer;font-size:1em;">저장</button></div></div></div>`;
+        const modalHTML = `<div id="capture-settings-modal" style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:9999;display:flex;justify-content:center;align-items:center;"><div style="background:${c.bg};color:${c.text};padding:24px;border-radius:12px;width:90%;max-width:600px;display:flex;flex-direction:column;gap:20px;max-height: 90vh;"><div style="display:flex;justify-content:space-between;align-items:center;"><h2 style="margin:0;font-size:1.4em;font-weight:600;">📸 캡쳐 설정</h2><button id="capture-modal-close" style="background:none;border:none;color:${c.text};font-size:1.5em;cursor:pointer;">&times;</button></div><div style="display:flex; gap: 10px; flex-wrap: wrap;"><div style="flex: 1 1 200px;"><label style="display:block; margin-bottom: 8px;">파일 이름:</label><input id="capture-filename" type="text" value="${localConfig.fileName}" style="width:100%;padding:10px;border:1px solid ${c.border};border-radius:6px;background:${c.inputBg};color:${c.text};box-sizing: border-box;"></div><div style="flex: 1 1 200px;"><label style="display:block; margin-bottom: 8px;">이미지 형식:</label><select id="capture-format" style="width:100%;padding:10px;border:1px solid ${c.border};border-radius:6px;background:${c.inputBg};color:${c.text};box-sizing: border-box;"><option value="jpeg" ${localConfig.imageFormat === 'jpeg' ? 'selected' : ''}>JPG</option><option value="png" ${localConfig.imageFormat === 'png' ? 'selected' : ''}>PNG</option><option value="webp" ${localConfig.imageFormat === 'webp' ? 'selected' : ''}>WEBP</option></select></div></div><div style="display: flex; align-items: center; padding-bottom: 10px; border-bottom: 1px solid ${c.border};"><input type="checkbox" id="capture-high-quality" style="width: 16px; height: 16px; margin-right: 8px;"><label for="capture-high-quality" style="cursor: pointer; user-select: none;">고화질(용량증가)</label></div><div><label style="display:block; margin-bottom: 8px;">단어 숨김 규칙:</label><div id="hidden-keyword-list" style="max-height: 150px; overflow-y: auto; border: 1px solid ${c.border}; border-radius: 6px; padding: 10px; margin-bottom: 10px;"></div><div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;"><input id="hidden-keyword-input" type="text" placeholder="숨길 키워드 등록" style="flex:1; padding:10px; border:1px solid ${c.border}; border-radius:6px; background:${c.inputBg}; color:${c.text}; box-sizing: border-box;"><button id="add-hidden-keyword" style="padding:10px; background:${c.btn}; color:${c.btnTxt}; border:none; border-radius:6px; cursor:pointer; min-width: 40px;">+</button></div></div><div style="text-align: right; border-top: 1px solid ${c.border}; padding-top: 20px;"><button id="capture-modal-save" style="padding:10px 20px;background:${c.btn};color:${c.btnTxt};border:none;border-radius:8px;cursor:pointer;font-size:1em;">저장</button></div></div></div>`;
         document.body.insertAdjacentHTML("beforeend", modalHTML);
         document.getElementById('capture-high-quality').checked = !!localConfig.highQualityCapture;
 
@@ -111,7 +120,7 @@
 
 
     // ===================================================================================
-    // PART 3: 캡쳐 로직 (rasterizeHTML로 교체됨)
+    // PART 3: 캡쳐 로직 (텍스트 위치 조정 방식 수정)
     // ===================================================================================
     function hideKeywordsInElement(element, keywords) {
         if (!element || !keywords || keywords.length === 0) return;
@@ -167,11 +176,18 @@
                 const clone = msg.cloneNode(true);
                 clone.querySelector('.capture-checkbox-container')?.remove();
 
+                // ========================= ★★★ 수정된 부분 ★★★ =========================
+                //
+                // 텍스트를 위로 올리는 방식을 `position` 속성을 이용하는 것으로 변경합니다.
                 const textBlock = clone.querySelector('.prose');
                 if (textBlock) {
+                    // 1. 위치를 수동으로 조절하기 위해 `relative`로 설정합니다.
                     textBlock.style.position = 'relative';
+                    // 2. 원래 있어야 할 위치보다 `top`에서 -10px, 즉 10px 위로 올립니다.
                     textBlock.style.top = '-10px';
                 }
+                //
+                // =======================================================================
 
                 clone.querySelectorAll('pre.shiki').forEach(codeBlock => {
                     const plainText = codeBlock.innerText;
@@ -202,65 +218,20 @@
                 hideKeywordsInElement(captureArea, config.hiddenKeywords);
             }
 
-            // rasterizeHTML은 측정을 위해 요소가 DOM에 있어야 합니다.
-            // 화면에 보이지 않도록 스타일을 적용하여 body에 추가합니다.
-            captureArea.style.position = 'absolute';
-            captureArea.style.top = '0';
-            captureArea.style.left = '0';
-            captureArea.style.zIndex = '-1';
-            captureArea.style.opacity = '0';
             document.body.appendChild(captureArea);
+            captureArea.style.position = 'absolute';
+            captureArea.style.left = '-9999px';
+            captureArea.style.top = '0px';
 
+            const canvasOptions = { useCORS: true, backgroundColor: bgColor, logging: false };
+            if (config.highQualityCapture) { canvasOptions.scale = 2; }
 
-            // ========================= ★★★ rasterizeHTML 캡쳐 로직 ★★★ =========================
-            const canvas = document.createElement('canvas');
-            const rect = captureArea.getBoundingClientRect();
-            const scale = config.highQualityCapture ? 2 : 1;
-
-            canvas.width = rect.width * scale;
-            canvas.height = rect.height * scale;
-
-            // rasterizeHTML 옵션 설정
-            const options = {
-                // 문서의 어느 부분을 그릴지 지정합니다.
-                clip: { x: rect.left, y: rect.top, width: rect.width, height: rect.height },
-                width: rect.width,
-                height: rect.height,
-                zoom: scale,
-                // 참고: rasterizeHTML은 배경색 옵션을 직접 받지 않습니다.
-                // 대신 캡처할 요소(captureArea)에 배경색이 적용되어 있어야 합니다.
-            };
-
-            // document 전체를 대상으로 하되, clip 옵션으로 지정한 영역만 canvas에 그립니다.
-            await rasterizeHTML.drawDocument(document, canvas, options);
-
-            // 캔버스를 데이터 URL로 변환
-            let dataUrl;
-            let finalFormat = config.imageFormat;
-
-            if (finalFormat === 'webp') {
-                finalFormat = 'png';
-            }
-
-            if (finalFormat === 'jpeg') {
-                dataUrl = canvas.toDataURL('image/jpeg', config.highQualityCapture ? 1.0 : 0.95);
-            } else {
-                dataUrl = canvas.toDataURL('image/png');
-            }
+            const canvas = await html2canvas(captureArea, canvasOptions);
 
             document.body.removeChild(captureArea);
-            downloadImage(dataUrl, finalFormat);
-            // ======================================================================================
-
-        } catch (error) {
-            console.error('캡쳐 중 오류 발생:', error);
-            alert('캡쳐에 실패했습니다. 콘솔을 확인해주세요.');
-        } finally {
-            btn.innerHTML = originalContent;
-            btn.disabled = false;
-        }
+            downloadImage(canvas.toDataURL(`image/${config.imageFormat}`, 1.0), config.imageFormat);
+        } catch (error) { console.error('캡쳐 중 오류 발생:', error); alert('캡쳐에 실패했습니다. 콘솔을 확인해주세요.'); } finally { btn.innerHTML = originalContent; btn.disabled = false; }
     }
-
 
     // ===================================================================================
     // PART 3-1 & 4 (수정 없음)
