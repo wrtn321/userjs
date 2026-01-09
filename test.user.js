@@ -1,14 +1,14 @@
 // ==UserScript==
-// @name         test (dom-to-image-more 적용 버전)
+// @name         test (rasterizeHTML 적용 버전)
 // @namespace    http://tampermonkey.net/
-// @version      2.6
+// @version      2.7
 // @description  뤼튼 크랙의 채팅 로그를 선택하여 캡쳐 (UI 업데이트, SPA 대응, 체크박스 우측 정렬, 텍스트 위치 조정, 캡쳐 엔진 변경)
 // @author       뤼붕이
 // @match        https://crack.wrtn.ai/stories/*/episodes/*
-// @downloadURL  https://github.com/wrtn321/userjs/raw/refs/heads/main/chatcapture.user.js
-// @updateURL    https://github.com/wrtn321/userjs/raw/refs/heads/main/chatcapture.user.js
+// @downloadURL  https://github.com/wrtn321/userjs/raw/refs/heads/main/test.user.js
+// @updateURL    https://github.com/wrtn321/userjs/raw/refs/heads/main/test.user.js
 // @grant        GM_addStyle
-// @require      https://cdn.jsdelivr.net/npm/dom-to-image-more@3.3.0/dist/dom-to-image-more.min.js
+// @require      https://cdn.jsdelivr.net/npm/rasterizehtml@1.3.1/dist/rasterizeHTML.all.min.js
 // @license      MIT
 // ==/UserScript==
 
@@ -50,23 +50,14 @@
             checkbox.style.cssText = 'width: 18px; height: 18px; cursor: pointer;';
             container.appendChild(checkbox);
 
-            // ========================= ★★★ 수정된 부분 ★★★ =========================
-            //
-            // 캐릭터/유저 대화 구분을 없애고 모든 체크박스를 우측 상단에 위치시킵니다.
-            // 1. container에 절대 위치 스타일을 적용합니다.
             container.style.position = 'absolute';
-            container.style.right = '8px'; // 오른쪽에서 8px 떨어지도록 조정
-            container.style.top = '8px';   // 위쪽에서 8px 떨어지도록 조정
+            container.style.right = '8px';
+            container.style.top = '8px';
             container.style.zIndex = '10';
 
-            // 2. 부모인 group에 relative 속성을 부여하여 container의 기준점이 되게 합니다.
             group.style.position = 'relative';
 
-            // 3. group의 맨 앞에 container를 추가합니다. (순서는 크게 상관없지만 일관성을 위해)
-            //    이렇게 하면 기존 메시지 내용 위에 체크박스가 올라가게 됩니다.
             group.prepend(container);
-            //
-            // =======================================================================
         });
     }
 
@@ -120,7 +111,7 @@
 
 
     // ===================================================================================
-    // PART 3: 캡쳐 로직 (dom-to-image-more로 교체됨)
+    // PART 3: 캡쳐 로직 (rasterizeHTML로 교체됨)
     // ===================================================================================
     function hideKeywordsInElement(element, keywords) {
         if (!element || !keywords || keywords.length === 0) return;
@@ -211,40 +202,50 @@
                 hideKeywordsInElement(captureArea, config.hiddenKeywords);
             }
 
-            document.body.appendChild(captureArea);
+            // rasterizeHTML은 측정을 위해 요소가 DOM에 있어야 합니다.
+            // 화면에 보이지 않도록 스타일을 적용하여 body에 추가합니다.
             captureArea.style.position = 'absolute';
-            captureArea.style.left = '-9999px';
-            captureArea.style.top = '0px';
+            captureArea.style.top = '0';
+            captureArea.style.left = '0';
+            captureArea.style.zIndex = '-1';
+            captureArea.style.opacity = '0';
+            document.body.appendChild(captureArea);
 
-            // ========================= ★★★ dom-to-image-more 캡쳐 로직 ★★★ =========================
+
+            // ========================= ★★★ rasterizeHTML 캡쳐 로직 ★★★ =========================
+            const canvas = document.createElement('canvas');
+            const rect = captureArea.getBoundingClientRect();
+            const scale = config.highQualityCapture ? 2 : 1;
+
+            canvas.width = rect.width * scale;
+            canvas.height = rect.height * scale;
+
+            // rasterizeHTML 옵션 설정
+            const options = {
+                // 문서의 어느 부분을 그릴지 지정합니다.
+                clip: { x: rect.left, y: rect.top, width: rect.width, height: rect.height },
+                width: rect.width,
+                height: rect.height,
+                zoom: scale,
+                // 참고: rasterizeHTML은 배경색 옵션을 직접 받지 않습니다.
+                // 대신 캡처할 요소(captureArea)에 배경색이 적용되어 있어야 합니다.
+            };
+
+            // document 전체를 대상으로 하되, clip 옵션으로 지정한 영역만 canvas에 그립니다.
+            await rasterizeHTML.drawDocument(document, canvas, options);
+
+            // 캔버스를 데이터 URL로 변환
             let dataUrl;
             let finalFormat = config.imageFormat;
-            const options = { bgcolor: bgColor };
 
-            // 고화질 옵션 처리 (2배 크기로 캡쳐)
-            if (config.highQualityCapture) {
-                options.width = captureArea.clientWidth * 2;
-                options.height = captureArea.clientHeight * 2;
-                options.style = {
-                    'transform': 'scale(2)',
-                    'transform-origin': 'top left'
-                };
-            }
-
-            // dom-to-image-more는 webp를 직접 지원하지 않으므로 png로 대체합니다.
             if (finalFormat === 'webp') {
                 finalFormat = 'png';
             }
 
-            switch (finalFormat) {
-                case 'jpeg':
-                    options.quality = config.highQualityCapture ? 1.0 : 0.95;
-                    dataUrl = await domtoimage.toJpeg(captureArea, options);
-                    break;
-                case 'png':
-                default:
-                    dataUrl = await domtoimage.toPng(captureArea, options);
-                    break;
+            if (finalFormat === 'jpeg') {
+                dataUrl = canvas.toDataURL('image/jpeg', config.highQualityCapture ? 1.0 : 0.95);
+            } else {
+                dataUrl = canvas.toDataURL('image/png');
             }
 
             document.body.removeChild(captureArea);
