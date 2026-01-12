@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         crack chat capture
 // @namespace    http://tampermonkey.net/
-// @version      1.33
+// @version      1.4
 // @description  뤼튼 크랙의 채팅 로그를 선택하여 캡쳐
 // @author       뤼붕이
 // @match        https://crack.wrtn.ai/stories/*/episodes/*
@@ -33,48 +33,47 @@
     // ===================================================================================
     // PART 2: UI 생성 및 관리
     // ===================================================================================
+
     function injectCheckboxes() {
         document.querySelectorAll('div[data-message-group-id]').forEach(group => {
             if (group.querySelector('.capture-checkbox-container')) return;
+
             const container = document.createElement('div');
             container.className = 'capture-checkbox-container';
-            container.style.cssText = 'display: flex; align-items: center; justify-content: center; z-index: 10;';
+
             const checkbox = document.createElement('input');
             checkbox.type = 'checkbox';
             checkbox.className = 'capture-checkbox';
             checkbox.style.cssText = 'width: 18px; height: 18px; cursor: pointer;';
             container.appendChild(checkbox);
 
-            if (group.querySelector('.css-1ifxcjt, .css-1g2i6q3')) {
-                 group.prepend(container);
-                 group.style.display = 'flex';
-            } else {
-                container.style.position = 'absolute';
-                container.style.right = '0px';
-                container.style.top = '0px';
-                group.style.position = 'relative';
-                group.appendChild(container);
-            }
+            container.style.position = 'absolute';
+            container.style.right = '8px';
+            container.style.top = '8px';
+            container.style.zIndex = '10';
+
+            group.style.position = 'relative';
+            group.prepend(container);
         });
     }
 
+
     async function createButtons() {
-        const menuContainer = await waitForElement('.css-uxwch2');
+        const menuContainer = await waitForElement('.py-4.overflow-y-auto.scrollbar > div.px-2:first-of-type');
         if (menuContainer && !document.getElementById('capture-settings-button')) {
             const settingsBtn = document.createElement('div');
             settingsBtn.id = 'capture-settings-button';
-            settingsBtn.className = 'css-1dib65l';
-            settingsBtn.style.cssText = "display: flex; cursor: pointer; padding: 10px;";
-            settingsBtn.innerHTML = `<p class="css-1xke5yy"><span style="padding-right: 6px;">📸</span>캡쳐 설정</p>`;
+            settingsBtn.className = 'px-2.5 h-4 box-content py-[18px]';
+            settingsBtn.innerHTML = `<button class="w-full flex h-4 items-center justify-between typo-110-16-med space-x-2 [&amp;_svg]:fill-icon_tertiary ring-offset-4 ring-offset-sidebar" style="cursor: pointer;"><span class="flex space-x-2 items-center"><span style="font-size: 16px;">📸</span><span class="whitespace-nowrap overflow-hidden text-ellipsis typo-text-sm_leading-none_medium">캡쳐 설정</span></span></button>`;
             settingsBtn.onclick = showSettingsModal;
             menuContainer.appendChild(settingsBtn);
         }
-        const chatInputArea = await waitForElement('.css-fhxiwe');
+
+        const chatInputArea = await waitForElement('.flex.items-center.space-x-2');
         if (chatInputArea && !document.getElementById('capture-action-button')) {
             const captureBtn = document.createElement('button');
             captureBtn.id = 'capture-action-button';
-            captureBtn.className = 'css-8xk5x8 eh9908w0';
-            captureBtn.style.cssText = "cursor: pointer; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;";
+            captureBtn.className = 'relative inline-flex items-center gap-1 rounded-full text-sm font-medium leading-none transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-focus disabled:pointer-events-none disabled:opacity-50 [&_svg]:size-4 [&_svg]:fill-current min-w-7 border border-border bg-card text-gray-1 hover:bg-secondary p-0 size-7 justify-center';
             captureBtn.title = "선택한 대화 캡쳐";
             captureBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" fill="var(--icon_tertiary)" viewBox="0 0 24 24" width="18" height="18"><path d="M9.4 11.3h5.2v-1.6H9.4zM22 6.3v13.4c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6.3c0-1.1.9-2 2-2h3l2-2h6l2 2h3c1.1 0 2 .9 2 2zM12 18.3c2.8 0 5-2.2 5-5s-2.2-5-5-5-5 2.2-5 5 2.2 5 5 5zm0-8.4c1.9 0 3.4 1.5 3.4 3.4s-1.5 3.4-3.4 3.4S8.6 15 8.6 13s1.5-3.1 3.4-3.1z"></path></svg>`;
             captureBtn.onclick = handleCapture;
@@ -149,20 +148,61 @@
             const config = ConfigManager.getConfig();
             const captureArea = document.createElement('div');
             const PADDING_VALUE = 20;
-            captureArea.style.padding = `${PADDING_VALUE}px`;
-            captureArea.style.boxSizing = 'border-box';
-            const chatContainer = document.querySelector('.css-18d9jqd, .css-alg45');
 
-            if (chatContainer) {
-                captureArea.style.width = `${chatContainer.clientWidth + (PADDING_VALUE * 2)}px`;
+            const messageContentArea = document.querySelector('div[data-message-group-id]');
+            if (messageContentArea) {
+                captureArea.style.width = `${messageContentArea.clientWidth + (PADDING_VALUE * 2)}px`;
+            } else {
+                const chatContainer = document.querySelector('div.stick-to-bottom');
+                if (chatContainer) {
+                    captureArea.style.width = `${chatContainer.clientWidth + (PADDING_VALUE * 2)}px`;
+                }
             }
 
+            captureArea.style.padding = `${PADDING_VALUE}px`;
+            captureArea.style.boxSizing = 'border-box';
             const bgColor = window.getComputedStyle(document.body).backgroundColor;
             captureArea.style.backgroundColor = bgColor;
 
             selectedMessages.reverse().forEach(msg => {
                 const clone = msg.cloneNode(true);
                 clone.querySelector('.capture-checkbox-container')?.remove();
+
+                const profileHeader = clone.querySelector('.css-15vhhhd');
+                if (profileHeader) {
+                    profileHeader.remove();
+                }
+
+                // ========================= ★★★ 수정된 부분 ★★★ =========================
+                //
+                // 메시지 타입에 따라 위치 조정 방식을 다르게 적용합니다.
+                const SHIFT_VALUE = '-8px';
+                const codeBlock = clone.querySelector('.wrtn-codeblock'); // 코드 블록이 있는지 확인
+
+                if (codeBlock) {
+                    // [코드 블록이 있는 경우]: 내부 요소만 정밀하게 올립니다.
+                    // 1. 코드 블록 제목("INFO")을 위로 올립니다.
+                    const codeTitle = codeBlock.querySelector('.css-1ywuktj');
+                    if (codeTitle) {
+                        codeTitle.style.position = 'relative';
+                        codeTitle.style.top = SHIFT_VALUE;
+                    }
+                    // 2. 코드 블록 내용(<pre>)을 위로 올립니다.
+                    const codeContent = codeBlock.querySelector('pre.shiki');
+                    if (codeContent) {
+                        codeContent.style.position = 'relative';
+                        codeContent.style.top = SHIFT_VALUE;
+                    }
+                } else {
+                    // [일반 메시지인 경우]: 메시지 전체를 감싸는 컨테이너를 올립니다.
+                    const textContainer = clone.querySelector('.wrtn-markdown');
+                    if (textContainer) {
+                        textContainer.style.position = 'relative';
+                        textContainer.style.top = SHIFT_VALUE;
+                    }
+                }
+                //
+                // =======================================================================
 
                 clone.querySelectorAll('pre.shiki').forEach(codeBlock => {
                     const plainText = codeBlock.innerText;
@@ -201,9 +241,10 @@
             const canvasOptions = {
                 useCORS: true,
                 backgroundColor: bgColor,
-                logging: false
+                logging: false,
+                scrollY: -window.scrollY,
+                windowHeight: window.innerHeight
             };
-
             if (config.highQualityCapture) {
                 canvasOptions.scale = 2;
             }
@@ -216,7 +257,7 @@
     }
 
     // ===================================================================================
-    // PART 3-1: 다운로드 및 보조 함수
+    // PART 4: 유틸리티 함수 및 스크립트 초기화
     // ===================================================================================
     function downloadImage(dataUrl, format) {
         let fileName = ConfigManager.getConfig().fileName;
@@ -232,9 +273,6 @@
         document.body.removeChild(link);
     }
 
-    // ===================================================================================
-    // PART 4: 스크립트 실행
-    // ===================================================================================
     function waitForElement(selector) {
         return new Promise(resolve => {
             const interval = setInterval(() => {
@@ -247,17 +285,34 @@
         });
     }
 
-    const observer = new MutationObserver(() => {
-        if (!document.getElementById('capture-settings-button') || !document.getElementById('capture-action-button')) {
-            createButtons();
+    let chatObserver = null;
+    function initializeScript() {
+        if (chatObserver) {
+            chatObserver.disconnect();
         }
-        injectCheckboxes();
-    });
+        chatObserver = new MutationObserver(() => {
+            if (!document.getElementById('capture-settings-button') || !document.getElementById('capture-action-button')) {
+                createButtons();
+            }
+            injectCheckboxes();
+        });
+        waitForElement('div.stick-to-bottom').then(chatArea => {
+            chatObserver.observe(chatArea, { childList: true, subtree: true });
+            createButtons();
+            injectCheckboxes();
+        });
+    }
 
-    waitForElement('.css-18d9jqd, .css-alg45').then(chatArea => {
-        observer.observe(chatArea, { childList: true, subtree: true });
-        createButtons();
-        injectCheckboxes();
+    let lastUrl = location.href;
+    const navigationObserver = new MutationObserver(() => {
+        const currentUrl = location.href;
+        if (currentUrl !== lastUrl) {
+            lastUrl = currentUrl;
+            console.log("페이지 이동 감지. 캡쳐 스크립트를 다시 실행합니다.");
+            initializeScript();
+        }
     });
+    navigationObserver.observe(document.body, { childList: true, subtree: true });
+    initializeScript();
 
 })();
