@@ -5,7 +5,7 @@
 // @description  뤼튼 크랙의 채팅 로그를 선택하여 캡쳐
 // @author       뤼붕이
 // @match        https://crack.wrtn.ai/stories/*/episodes/*
-// @downloadURL    https://github.com/wrtn321/userjs/raw/refs/heads/main/chatcapture.user.js
+// @downloadURL  https://github.com/wrtn321/userjs/raw/refs/heads/main/chatcapture.user.js
 // @updateURL    https://github.com/wrtn321/userjs/raw/refs/heads/main/chatcapture.user.js
 // @grant        GM_addStyle
 // @require      https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js
