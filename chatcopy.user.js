@@ -5,8 +5,8 @@
 // @description  사용자 프롬프트와 함께 채팅로그를 복사
 // @author       뤼붕이
 // @match        https://crack.wrtn.ai/stories/*/episodes/*
-// @downloadURL  https://github.com/wrtn321/userjs/raw/refs/heads/main/chatcopy.user.js
-// @updateURL    https://github.com/wrtn321/userjs/raw/refs/heads/main/chatcopy.user.js
+// @downloadURL  https://raw.githubusercontent.com/wrtn321/userjs/main/chatcopy.user.js
+// @updateURL    https://raw.githubusercontent.com/wrtn321/userjs/main/chatcopy.user.js
 // @grant        GM_xmlhttpRequest
 // @require      https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js
 // @license      MIT
