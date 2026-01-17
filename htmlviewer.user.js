@@ -5,8 +5,8 @@
 // @description  채팅로그를 읽기 전용 HTML로 저장합니다.
 // @author       뤼붕이
 // @match        https://crack.wrtn.ai/stories/*/episodes/*
-// @downloadURL  https://github.com/wrtn321/userjs/raw/refs/heads/main/htmlviewer.user.js
-// @updateURL    https://github.com/wrtn321/userjs/raw/refs/heads/main/htmlviewer.user.js
+// @downloadURL  https://raw.githubusercontent.com/wrtn321/userjs/main/htmlviewer.user.js
+// @updateURL    https://raw.githubusercontent.com/wrtn321/userjs/main/htmlviewer.user.js
 // @grant        GM_xmlhttpRequest
 // @require      https://cdn.jsdelivr.net/npm/dompurify@3.0.11/dist/purify.min.js
 // @license      MIT
