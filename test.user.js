@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         test
 // @namespace    http://tampermonkey.net/
-// @version      2.44
+// @version      2.45
 // @description  뤼튼 크랙의 채팅 로그를 선택하여 캡쳐
 // @author       뤼붕이
 // @match        https://crack.wrtn.ai/stories/*/episodes/*
@@ -203,6 +203,8 @@
                 }
 
                 if (isIOS) {
+                    // 순서 변경을 원하지 않으면 이 라인을 삭제하거나 주석 처리하세요.
+                    capturedImages.reverse(); // 최신순으로 보려면 이 줄의 주석을 푸세요.
                     showImagePreviewModal(capturedImages); // iOS이면 미리보기 창을 띄움
                 } else {
                     // 기존 PC/안드로이드 다운로드 방식
