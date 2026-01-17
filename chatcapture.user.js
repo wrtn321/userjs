@@ -204,6 +204,8 @@
                 }
 
                 if (isIOS) {
+                    // 순서 변경을 원하지 않으면 이 라인을 삭제하거나 주석 처리하세요.
+                    capturedImages.reverse();
                     showImagePreviewModal(capturedImages);
                 } else {
                     capturedImages.forEach((dataUrl, index) => {
@@ -252,6 +254,8 @@
                 const dataUrl = canvas.toDataURL(`image/${config.imageFormat}`, 1.0);
 
                 if (isIOS) {
+                    // 순서 변경을 원하지 않으면 이 라인을 삭제하거나 주석 처리하세요.
+                    capturedImages.reverse();
                     showImagePreviewModal([dataUrl]);
                 } else {
                     downloadImage(dataUrl, config.imageFormat);
