@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         test
 // @namespace    http://tampermonkey.net/
-// @version      2.41
-// @description  뤼튼 크랙의 채팅 로그를 선택하여 캡쳐 (분할 캡쳐 모드 추가)
+// @version      2.42
+// @description  뤼튼 크랙의 채팅 로그를 선택하여 캡쳐 / 마크다운-8px
 // @author       뤼붕이 (코드 블록 조정 by Gemini)
 // @match        https://crack.wrtn.ai/stories/*/episodes/*
 // @downloadURL  https://github.com/wrtn321/userjs/raw/refs/heads/main/test.user.js
@@ -256,58 +256,66 @@
         }
     }
 
-    // 메시지 복제 및 전처리 로직을 별도 함수로 분리 (재사용을 위해)
-    function processMessageClone(msgElement) {
-        const clone = msgElement.cloneNode(true);
-        clone.querySelector('.capture-checkbox-container')?.remove();
+// 메시지 복제 및 전처리 로직을 별도 함수로 분리 (재사용을 위해)
+function processMessageClone(msgElement) {
+    const clone = msgElement.cloneNode(true);
+    clone.querySelector('.capture-checkbox-container')?.remove();
 
-        const profileHeader = clone.querySelector('.css-15vhhhd');
-        if (profileHeader) {
-            profileHeader.remove();
-        }
-
-        const SHIFT_VALUE = '-8px';
-        const codeBlock = clone.querySelector('.wrtn-codeblock');
-
-        if (codeBlock) {
-            const codeTitle = codeBlock.querySelector('.css-1ywuktj');
-            if (codeTitle) {
-                codeTitle.style.position = 'relative';
-                codeTitle.style.top = SHIFT_VALUE;
-            }
-            const codeContent = codeBlock.querySelector('pre.shiki');
-            if (codeContent) {
-                codeContent.style.position = 'relative';
-                codeContent.style.top = SHIFT_VALUE;
-            }
-        } else {
-            const textContainer = clone.querySelector('.wrtn-markdown');
-            if (textContainer) {
-                textContainer.style.position = 'relative';
-                textContainer.style.top = SHIFT_VALUE;
-            }
-        }
-
-        clone.querySelectorAll('pre.shiki').forEach(codeBlock => {
-            const plainText = codeBlock.innerText;
-            const newPre = document.createElement('pre');
-            newPre.textContent = plainText;
-            const originalStyle = window.getComputedStyle(codeBlock);
-            newPre.style.backgroundColor = '#242321';
-            newPre.style.color = '#e1e4e8';
-            newPre.style.fontSize = '.875rem';
-            newPre.style.fontFamily = '"IBMPlexMono-Regular", "IBM Plex Mono", "Pretendard", "Apple SD Gothic Neo", -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif';
-            newPre.style.padding = originalStyle.padding;
-            newPre.style.margin = originalStyle.margin;
-            newPre.style.borderRadius = originalStyle.borderRadius;
-            newPre.style.lineHeight = originalStyle.lineHeight;
-            newPre.style.whiteSpace = 'pre-wrap';
-            newPre.style.wordBreak = 'break-word';
-            codeBlock.parentNode.replaceChild(newPre, codeBlock);
-        });
-
-        return clone;
+    const profileHeader = clone.querySelector('.css-15vhhhd');
+    if (profileHeader) {
+        profileHeader.remove();
     }
+
+    // 1. html2canvas 렌더링 오류를 막기 위해 코드 블록을 먼저 재구성합니다. (이전과 동일)
+    clone.querySelectorAll('pre.shiki').forEach(codeBlock => {
+        const plainText = codeBlock.innerText;
+        const newPre = document.createElement('pre');
+        newPre.textContent = plainText;
+        const originalStyle = window.getComputedStyle(codeBlock);
+        newPre.style.backgroundColor = '#242321';
+        newPre.style.color = '#e1e4e8';
+        newPre.style.fontSize = '.875rem';
+        newPre.style.fontFamily = '"IBMPlexMono-Regular", "IBM Plex Mono", "Pretendendard", "Apple SD Gothic Neo", -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif';
+        newPre.style.padding = originalStyle.padding;
+        newPre.style.margin = originalStyle.margin;
+        newPre.style.borderRadius = originalStyle.borderRadius;
+        newPre.style.lineHeight = originalStyle.lineHeight;
+        newPre.style.whiteSpace = 'pre-wrap';
+        newPre.style.wordBreak = 'break-word';
+        codeBlock.parentNode.replaceChild(newPre, codeBlock);
+    });
+
+    // [수정됨] 2. 모든 텍스트를 찾아 조건 없이 -8px 올립니다.
+    const textContainer = clone.querySelector('.wrtn-markdown');
+    if (textContainer) {
+        // [제거됨] 마크다운 셀렉터가 더 이상 필요 없습니다.
+
+        const walker = document.createTreeWalker(textContainer, NodeFilter.SHOW_TEXT, null, false);
+        let node;
+        const nodesToProcess = [];
+        while (node = walker.nextNode()) {
+            if (node.nodeValue.trim() !== '') {
+                nodesToProcess.push(node);
+            }
+        }
+
+        nodesToProcess.forEach(textNode => {
+            const parent = textNode.parentNode;
+
+            // [제거됨] 마크다운인지 검사하는 로직이 필요 없습니다.
+            // [제거됨] shiftValue 변수도 필요 없습니다.
+
+            const span = document.createElement('span');
+            span.style.position = 'relative';
+            span.style.top = '-8px'; // 값으로 바로 적용
+            span.textContent = textNode.nodeValue;
+
+            parent.replaceChild(span, textNode);
+        });
+    }
+
+    return clone;
+}
 
 
     // ===================================================================================
