@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         test
 // @namespace    http://tampermonkey.net/
-// @version      1.71
+// @version      1.72
 // @description  뤼튼 크랙의 채팅 로그를 선택하여 캡쳐
 // @author       뤼붕이
 // @match        https://crack.wrtn.ai/stories/*/episodes/*
@@ -21,7 +21,7 @@
     // ===================================================================================
     class ConfigManager {
         static getConfig() {
-            const defaultConfig = { imageFormat: 'jpeg', fileName: '캡쳐_{date}', hiddenKeywords: [], highQualityCapture: false, splitCapture: false };
+            const defaultConfig = { imageFormat: 'jpeg', fileName: '캡쳐_{date}', hiddenKeywords: [], qualityScale: '2', splitCapture: false };
             try {
                 const storedConfig = JSON.parse(localStorage.getItem("crackCaptureConfigV5") || "{}");
                 if (!Array.isArray(storedConfig.hiddenKeywords)) storedConfig.hiddenKeywords = [];
@@ -88,9 +88,21 @@
         let localConfig = ConfigManager.getConfig();
         const isDark = document.body.dataset.theme === 'dark';
         const c = { bg: isDark ? '#2c2c2e' : '#ffffff', text: isDark ? '#e0e0e0' : '#333333', border: isDark ? '#444444' : '#cccccc', inputBg: isDark ? '#3a3a3c' : '#f0f0f0', btn: isDark ? '#0a84ff' : '#007aff', delBtn: isDark ? '#ff453a' : '#ff3b30', btnTxt: '#ffffff' };
-        const modalHTML = `<div id="capture-settings-modal" style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:9999;display:flex;justify-content:center;align-items:center;"><div style="background:${c.bg};color:${c.text};padding:24px;border-radius:12px;width:90%;max-width:600px;display:flex;flex-direction:column;gap:20px;max-height: 90vh;"><div style="display:flex;justify-content:space-between;align-items:center;"><h2 style="margin:0;font-size:1.4em;font-weight:600;">📸 캡쳐 설정</h2><button id="capture-modal-close" style="background:none;border:none;color:${c.text};font-size:1.5em;cursor:pointer;">&times;</button></div><div style="display:flex; gap: 10px; flex-wrap: wrap;"><div style="flex: 1 1 200px;"><label style="display:block; margin-bottom: 8px;">파일 이름:</label><input id="capture-filename" type="text" value="${localConfig.fileName}" style="width:100%;padding:10px;border:1px solid ${c.border};border-radius:6px;background:${c.inputBg};color:${c.text};box-sizing: border-box;"></div><div style="flex: 1 1 200px;"><label style="display:block; margin-bottom: 8px;">이미지 형식:</label><select id="capture-format" style="width:100%;padding:10px;border:1px solid ${c.border};border-radius:6px;background:${c.inputBg};color:${c.text};box-sizing: border-box;"><option value="jpeg" ${localConfig.imageFormat === 'jpeg' ? 'selected' : ''}>JPG</option><option value="png" ${localConfig.imageFormat === 'png' ? 'selected' : ''}>PNG</option><option value="webp" ${localConfig.imageFormat === 'webp' ? 'selected' : ''}>WEBP</option></select></div></div><div style="display: flex; gap: 20px; align-items: center; padding-bottom: 10px; border-bottom: 1px solid ${c.border};"><div style="display: flex; align-items: center;"><input type="checkbox" id="capture-high-quality" style="width: 16px; height: 16px; margin-right: 8px;"><label for="capture-high-quality" style="cursor: pointer; user-select: none;">고화질(용량증가)</label></div><div style="display: flex; align-items: center;"><input type="checkbox" id="capture-split-mode" style="width: 16px; height: 16px; margin-right: 8px;"><label for="capture-split-mode" style="cursor: pointer; user-select: none;">분할 캡쳐</label></div></div><div><label style="display:block; margin-bottom: 8px;">단어 숨김 규칙:</label><div id="hidden-keyword-list" style="max-height: 150px; overflow-y: auto; border: 1px solid ${c.border}; border-radius: 6px; padding: 10px; margin-bottom: 10px;"></div><div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;"><input id="hidden-keyword-input" type="text" placeholder="숨길 키워드 등록" style="flex:1; padding:10px; border:1px solid ${c.border}; border-radius:6px; background:${c.inputBg}; color:${c.text}; box-sizing: border-box;"><button id="add-hidden-keyword" style="padding:10px; background:${c.btn}; color:${c.btnTxt}; border:none; border-radius:6px; cursor:pointer; min-width: 40px;">+</button></div></div><div style="text-align: right; border-top: 1px solid ${c.border}; padding-top: 20px;"><button id="capture-modal-save" style="padding:10px 20px;background:${c.btn};color:${c.btnTxt};border:none;border-radius:8px;cursor:pointer;font-size:1em;">저장</button></div></div></div>`;
+        const modalHTML = `<div id="capture-settings-modal" style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:9999;display:flex;justify-content:center;align-items:center;"><div style="background:${c.bg};color:${c.text};padding:24px;border-radius:12px;width:90%;max-width:600px;display:flex;flex-direction:column;gap:20px;max-height: 90vh;"><div style="display:flex;justify-content:space-between;align-items:center;"><h2 style="margin:0;font-size:1.4em;font-weight:600;">📸 캡쳐 설정</h2><button id="capture-modal-close" style="background:none;border:none;color:${c.text};font-size:1.5em;cursor:pointer;">&times;</button></div><div style="display:flex; gap: 10px; flex-wrap: wrap;"><div style="flex: 1 1 200px;"><label style="display:block; margin-bottom: 8px;">파일 이름:</label><input id="capture-filename" type="text" value="${localConfig.fileName}" style="width:100%;padding:10px;border:1px solid ${c.border};border-radius:6px;background:${c.inputBg};color:${c.text};box-sizing: border-box;"></div><div style="flex: 1 1 200px;"><label style="display:block; margin-bottom: 8px;">이미지 형식:</label><select id="capture-format" style="width:100%;padding:10px;border:1px solid ${c.border};border-radius:6px;background:${c.inputBg};color:${c.text};box-sizing: border-box;"><option value="jpeg" ${localConfig.imageFormat === 'jpeg' ? 'selected' : ''}>JPG</option><option value="png" ${localConfig.imageFormat === 'png' ? 'selected' : ''}>PNG</option><option value="webp" ${localConfig.imageFormat === 'webp' ? 'selected' : ''}>WEBP</option></select></div></div>
+        <div style="display: flex; gap: 30px; align-items: center; padding-bottom: 10px; border-bottom: 1px solid ${c.border};">
+            <div style="display: flex; align-items: center; gap: 15px;">
+                <label>화질:</label>
+                <div style="display: flex; align-items: center; gap: 5px;"><input type="radio" id="quality-1x" name="capture-quality" value="1" ${localConfig.qualityScale === '1' ? 'checked' : ''}><label for="quality-1x" style="cursor: pointer; user-select: none;">저</label></div>
+                <div style="display: flex; align-items: center; gap: 5px;"><input type="radio" id="quality-2x" name="capture-quality" value="2" ${localConfig.qualityScale === '2' ? 'checked' : ''}><label for="quality-2x" style="cursor: pointer; user-select: none;">중</label></div>
+                <div style="display: flex; align-items: center; gap: 5px;"><input type="radio" id="quality-3x" name="capture-quality" value="3" ${localConfig.qualityScale === '3' ? 'checked' : ''}><label for="quality-3x" style="cursor: pointer; user-select: none;">고</label></div>
+            </div>
+            <div style="display: flex; align-items: center;">
+                <input type="checkbox" id="capture-split-mode" style="width: 16px; height: 16px; margin-right: 8px;">
+                <label for="capture-split-mode" style="cursor: pointer; user-select: none;">분할 캡쳐</label>
+            </div>
+        </div>
+        <div><label style="display:block; margin-bottom: 8px;">단어 숨김 규칙:</label><div id="hidden-keyword-list" style="max-height: 150px; overflow-y: auto; border: 1px solid ${c.border}; border-radius: 6px; padding: 10px; margin-bottom: 10px;"></div><div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;"><input id="hidden-keyword-input" type="text" placeholder="숨길 키워드 등록" style="flex:1; padding:10px; border:1px solid ${c.border}; border-radius:6px; background:${c.inputBg}; color:${c.text}; box-sizing: border-box;"><button id="add-hidden-keyword" style="padding:10px; background:${c.btn}; color:${c.btnTxt}; border:none; border-radius:6px; cursor:pointer; min-width: 40px;">+</button></div></div><div style="text-align: right; border-top: 1px solid ${c.border}; padding-top: 20px;"><button id="capture-modal-save" style="padding:10px 20px;background:${c.btn};color:${c.btnTxt};border:none;border-radius:8px;cursor:pointer;font-size:1em;">저장</button></div></div></div>`;
         document.body.insertAdjacentHTML("beforeend", modalHTML);
-        document.getElementById('capture-high-quality').checked = !!localConfig.highQualityCapture;
         document.getElementById('capture-split-mode').checked = !!localConfig.splitCapture;
 
         const renderHiddenKeywordList = () => { const listDiv = document.getElementById('hidden-keyword-list'); listDiv.innerHTML = ''; if (localConfig.hiddenKeywords.length === 0) { listDiv.innerHTML = `<span style="opacity: 0.6;">등록된 키워드가 없습니다.</span>`; } localConfig.hiddenKeywords.forEach((keyword, index) => { const item = document.createElement('div'); item.style.cssText = `display:flex; justify-content:space-between; align-items:center; padding: 5px; border-radius: 4px;`; item.innerHTML = `<span>${keyword}</span><button data-index="${index}" class="delete-keyword" style="background:${c.delBtn}; color:${c.btnTxt}; border:none; border-radius:4px; cursor:pointer; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center;">×</button>`; listDiv.appendChild(item); }); document.querySelectorAll('.delete-keyword').forEach(btn => { btn.onclick = (e) => { localConfig.hiddenKeywords.splice(parseInt(e.target.dataset.index), 1); renderHiddenKeywordList(); }; }); };
@@ -100,7 +112,7 @@
         document.getElementById('capture-modal-save').onclick = () => {
             localConfig.fileName = document.getElementById('capture-filename').value;
             localConfig.imageFormat = document.getElementById('capture-format').value;
-            localConfig.highQualityCapture = document.getElementById('capture-high-quality').checked;
+            localConfig.qualityScale = document.querySelector('input[name="capture-quality"]:checked').value;
             localConfig.splitCapture = document.getElementById('capture-split-mode').checked;
             ConfigManager.setConfig(localConfig);
             alert('설정이 저장되었습니다.');
@@ -156,14 +168,13 @@
             const config = ConfigManager.getConfig();
             const bgColor = window.getComputedStyle(document.body).backgroundColor;
             const PADDING_VALUE = 20;
-
             const canvasOptions = {
                 useCORS: true,
                 backgroundColor: bgColor,
                 logging: false,
                 scrollY: -window.scrollY,
                 windowHeight: window.innerHeight,
-                scale: config.highQualityCapture ? 2 : 1
+                scale: parseFloat(config.qualityScale) || 1
             };
 
             if (config.splitCapture) {
@@ -195,16 +206,13 @@
                     captureArea.style.left = '-9999px';
                     captureArea.style.top = '0px';
 
-                    // 캡쳐 전 외부 이미지를 Data URL로 변환
                     await convertImagesToDataURL(captureArea);
-
                     const canvas = await html2canvas(captureArea, canvasOptions);
                     capturedImages.push(canvas.toDataURL(`image/${config.imageFormat}`, 1.0));
                     document.body.removeChild(captureArea);
                 }
 
                 if (isIOS) {
-                    // 순서 변경을 원하지 않으면 이 라인을 삭제하거나 주석 처리하세요.
                     capturedImages.reverse();
                     showImagePreviewModal(capturedImages);
                 } else {
@@ -246,7 +254,6 @@
                 captureArea.style.left = '-9999px';
                 captureArea.style.top = '0px';
 
-                // 캡쳐 전 외부 이미지를 Data URL로 변환
                 await convertImagesToDataURL(captureArea);
 
                 const canvas = await html2canvas(captureArea, canvasOptions);
@@ -254,16 +261,17 @@
                 const dataUrl = canvas.toDataURL(`image/${config.imageFormat}`, 1.0);
 
                 if (isIOS) {
-                    // 순서 변경을 원하지 않으면 이 라인을 삭제하거나 주석 처리하세요.
-                    //capturedImages.reverse();
                     showImagePreviewModal([dataUrl]);
                 } else {
                     downloadImage(dataUrl, config.imageFormat);
                 }
             }
+
+            // 캡쳐 성공 시, 체크박스 해제
             document.querySelectorAll('.capture-checkbox:checked').forEach(checkbox => {
                 checkbox.checked = false;
             });
+
         } catch (error) {
             console.error('캡쳐 중 오류 발생:', error);
             alert('캡쳐에 실패했습니다. 콘솔을 확인해주세요.');
@@ -273,7 +281,6 @@
         }
     }
 
-    // 메시지 복제 및 전처리 로직
     function processMessageClone(msgElement) {
         const clone = msgElement.cloneNode(true);
 
@@ -288,7 +295,7 @@
         }
 
         const imageDataMap = {
-        'https://cdn-image.wrtn.ai/crack/icons/prochat_1_0.webp': 'data:image/webp;base64,UklGRjQFAABXRUJQVlA4WAoAAAAwAAAAXwAAXwAASUNDUMgBAAAAAAHIAAAAAAQwAABtbnRyUkdCIFhZWiAH4AABAAEAAAAAAABhY3NwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAA9tYAAQAAAADTLQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAlkZXNjAAAA8AAAACRyWFlaAAABFAAAABRnWFlaAAABKAAAABRiWFlaAAABPAAAABR3dHB0AAABUAAAABRyVFJDAAABZAAAAChnVFJDAAABZAAAAChiVFJDAAABZAAAAChjcHJ0AAABjAAAADxtbHVjAAAAAAAAAAEAAAAMZW5VUwAAAAgAAAAcAHMAUgBHAEJYWVogAAAAAAAAb6IAADj1AAADkFhZWiAAAAAAAABimQAAt4UAABjaWFlaIAAAAAAAACSgAAAPhAAAts9YWVogAAAAAAAA9tYAAQAAAADTLXBhcmEAAAAAAAQAAAACZmYAAPKnAAANWQAAE9AAAApbAAAAAAAAAABtbHVjAAAAAAAAAAEAAAAMZW5VUwAAACAAAAAcAEcAbwBvAGcAbABlACAASQBuAGMALgAgADIAMAAxADZWUDhMRQMAAC9fwBcQ18GgbSNJ3r3jz7jdjwRBtk39aXeCI0zbNtr+vzjtFoaMJAmqNxiU97d4g0dog01Y76V4XTgL3aDW6QblZINyurFAtUEttLEwVBopUqRACA1CCC19sOUcNvRDBYYfvZ93MWy5h00G2QKAxm0jpF5Z7zY9kixGsuY4WU9bcrXt///MTgUoT3uK6P8EqP9lw9frzjuLiOhqv3kd4iGJaeeQsG6GAzF4i+S2GYqL/ywyu1RU/GdRoEvl/LUo1KUyeo+Cm1DAX5TtkrToUfxGVnBYYB0E9RaLdEHMH4uFuiBkwHJdENHbgtAFAcFh0S6yRYeFe7YNFr9hSngAB5bgDoGLHA3yr9Z8uGHokX8NUPHhQOcE3ALcCvBkCQUeAxwLwIHKCVgDAFQCPFGHAh9GtwJwoGkkHI+OJfwiCShwDZOVABspkoSHqVsB+ErhGZ6PHqaOp44nqmvzwOAJIjJeAZgHRKxgWleI1bUGuGHAmPfFUWkAMA/4sAce8E4DgFlzpLyWA69gbI72HRkYXyJnm+dZKj3KNxVLnWdZ8Ipmjrwxp0feSlMYZO5zOia8ophzpZzEs7rQFGa24nnNeWFYXWggN7MVQyujWs00MJvZE1WTsyVZzTSI1LNFKSBXl3Iu54eElgTX8xMB+vimQgkvNIhYzU80h57dV0jd5iSy8eOpptGzRYWMLzlfLIh4S3GDzCkncB1THHMNOYppBaRLpphV8xiaYx6rsrcsDzCpc2DJ4vMSixkdL6723c7N6JjlNS9yPADA8QJxuW+NODcAsOTo85RnOAezwLGZOsLx3MA5g1OE7wzVT5y+mjqfQFxUDA1FYPjmcurnHtaBQnkBqEcGBTpF+inhfHQu4YNGWQHL0UKADUTvAlADGBTYKOJoBZwDnAlwgUq9CVgCLAS8KHrPh+eXyO8UYydA5AeHag9Bo1hjXZ6LPKovL6gD96a4u9JeFPtXYS+KP5W1VQJfinpREtuSXpTIbTn2U8n0xdRBHbZ3JdaV4YOSa0uoOyUZ5ftOiY4klsO2nRLeZ9nfb0F1W0djd11U4rvv1W2n9obP1tvv2LpNQRX5DbtLUeWHbtyHqMpNE/69U4e6d3aXovqvGAA=',
+            'https://cdn-image.wrtn.ai/crack/icons/prochat_1_0.webp': 'data:image/webp;base64,UklGRjQFAABXRUJQVlA4WAoAAAAwAAAAXwAAXwAASUNDUMgBAAAAAAHIAAAAAAQwAABtbnRyUkdCIFhZWiAH4AABAAEAAAAAAABhY3NwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAA9tYAAQAAAADTLQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAlkZXNjAAAA8AAAACRyWFlaAAABFAAAABRnWFlaAAABKAAAABRiWFlaAAABPAAAABR3dHB0AAABUAAAABRyVFJDAAABZAAAAChnVFJDAAABZAAAAChiVFJDAAABZAAAAChjcHJ0AAABjAAAADxtbHVjAAAAAAAAAAEAAAAMZW5VUwAAAAgAAAAcAHMAUgBHAEJYWVogAAAAAAAAb6IAADj1AAADkFhZWiAAAAAAAABimQAAt4UAABjaWFlaIAAAAAAAACSgAAAPhAAAts9YWVogAAAAAAAA9tYAAQAAAADTLXBhcmEAAAAAAAQAAAACZmYAAPKnAAANWQAAE9AAAApbAAAAAAAAAABtbHVjAAAAAAAAAAEAAAAMZW5VUwAAACAAAAAcAEcAbwBvAGcAbABlACAASQBuAGMALgAgADIAMAAxADZWUDhMRQMAAC9fwBcQ18GgbSNJ3r3jz7jdjwRBtk39aXeCI0zbNtr+vzjtFoaMJAmqNxiU97d4g0dog01Y76V4XTgL3aDW6QblZINyurFAtUEttLEwVBopUqRACA1CCC19sOUcNvRDBYYfvZ93MWy5h00G2QKAxm0jpF5Z7zY9kixGsuY4WU9bcrXt///MTgUoT3uK6P8EqP9lw9frzjuLiOhqv3kd4iGJaeeQsG6GAzF4i+S2GYqL/ywyu1RU/GdRoEvl/LUo1KUyeo+Cm1DAX5TtkrToUfxGVnBYYB0E9RaLdEHMH4uFuiBkwHJdENHbgtAFAcFh0S6yRYeFe7YNFr9hSngAB5bgDoGLHA3yr9Z8uGHokX8NUPHhQOcE3ALcCvBkCQUeAxwLwIHKCVgDAFQCPFGHAh9GtwJwoGkkHI+OJfwiCShwDZOVABspkoSHqVsB+ErhGZ6PHqaOp44nqmvzwOAJIjJeAZgHRKxgWleI1bUGuGHAmPfFUWkAMA/4sAce8E4DgFlzpLyWA69gbI72HRkYXyJnm+dZKj3KNxVLnWdZ8Ipmjrwxp0feSlMYZO5zOia8ophzpZzEs7rQFGa24nnNeWFYXWggN7MVQyujWs00MJvZE1WTsyVZzTSI1LNFKSBXl3Iu54eElgTX8xMB+vimQgkvNIhYzU80h57dV0jd5iSy8eOpptGzRYWMLzlfLIh4S3GDzCkncB1THHMNOYppBaRLpphV8xiaYx6rsrcsDzCpc2DJ4vMSixkdL6723c7N6JjlNS9yPADA8QJxuW+NODcAsOTo85RnOAezwLGZOsLx3MA5g1OE7wzVT5y+mjqfQFxUDA1FYPjmcurnHtaBQnkBqEcGBTpF+inhfHQu4YNGWQHL0UKADUTvAlADGBTYKOJoBZwDnAlwgUq9CVgCLAS8KHrPh+eXyO8UYydA5AeHag9Bo1hjXZ6LPKovL6gD96a4u9JeFPtXYS+KP5W1VQJfinpREtuSXpTIbTn2U8n0xdRBHbZ3JdaV4YOSa0uoOyUZ5ftOiY4klsO2nRLeZ9nfb0F1W0djd11U4rvv1W2n9obP1tvv2LpNQRX5DbtLUeWHbtyHqMpNE/69U4e6d3aXovqvGAA=',
         'https://cdn-image.wrtn.ai/crack/icons/hyperchat.webp': 'data:image/webp;base64,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',
         'https://cdn-image.wrtn.ai/crack/icons/superchatplus.webp': 'data:image/webp;base64,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',
         'https://cdn-image.wrtn.ai/crack/icons/superchat.webp': 'data:image/webp;base64,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',
@@ -299,15 +306,12 @@
         clone.querySelectorAll('img').forEach(img => {
             for (const originalUrl in imageDataMap) {
                 if (img.src.startsWith(originalUrl)) {
-                    // crossOrigin 속성 설정은 이제 필요 없으므로 제거했습니다.
                     img.src = imageDataMap[originalUrl];
                     break;
                 }
             }
         });
 
-
-        // 2. html2canvas 렌더링 오류를 막기 위해 코드 블록을 먼저 재구성합니다.
         clone.querySelectorAll('pre.shiki').forEach(codeBlock => {
             const plainText = codeBlock.innerText;
             const newPre = document.createElement('pre');
@@ -326,7 +330,6 @@
             codeBlock.parentNode.replaceChild(newPre, codeBlock);
         });
 
-        // 3. 메시지 본문('.wrtn-markdown')의 모든 텍스트를 찾아 -8px 올립니다.
         const textContainer = clone.querySelector('.wrtn-markdown');
         if (textContainer) {
             const walker = document.createTreeWalker(textContainer, NodeFilter.SHOW_TEXT, null, false);
@@ -347,7 +350,6 @@
             });
         }
 
-        // 4. '이어서 생성' 버튼의 텍스트를 찾아 -8px 올립니다.
         clone.querySelectorAll('p').forEach(pElement => {
             if (pElement.textContent.trim() === '이어서 생성') {
                 pElement.style.position = 'relative';
@@ -362,7 +364,6 @@
     // PART 4: 유틸리티 함수 및 스크립트 초기화
     // ===================================================================================
 
-    // 외부 이미지를 Tampermonkey의 GM_xmlhttpRequest를 이용해 Data URL로 변환하는 최종 함수
     async function convertImagesToDataURL(element) {
         const images = Array.from(element.querySelectorAll("img:not([src^='data:']):not([src^='blob:'])"));
         if (images.length === 0) {
@@ -384,14 +385,12 @@
                         resolve();
                     };
                     reader.onerror = function(err) {
-                        // 실패해도 전체 캡쳐가 멈추지 않도록 resolve 처리
                         console.error(`'${originalSrc}' 데이터 변환 중 오류:`, err);
                         resolve();
                     };
                     reader.readAsDataURL(response.response);
                 },
                 onerror: function(err) {
-                    // 실패해도 전체 캡쳐가 멈추지 않도록 resolve 처리
                     console.error(`'${originalSrc}' 이미지 다운로드 실패:`, err);
                     resolve();
                 }
@@ -401,7 +400,6 @@
         try {
             await Promise.all(promises);
         } catch (error) {
-            // Promise 배열의 reject는 여기서 처리되지 않지만, 만약을 위해 남겨둠
             console.error('일부 이미지 변환에 실패했습니다:', error);
         }
     }
