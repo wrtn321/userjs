@@ -5,8 +5,8 @@
 // @description  채팅 로그를 지정된 형식의 JSON으로 저장.
 // @author       뤼붕이
 // @match        https://crack.wrtn.ai/stories/*/episodes/*
-// @downloadURL  https://raw.githubusercontent.com/wrtn321/userjs/main/jsonlog.user.js
-// @updateURL    https://raw.githubusercontent.com/wrtn321/userjs/main/jsonlog.user.js
+// @downloadURL  https://raw.githubusercontent.com/wrtn321/userjs/main/json_log.user.js
+// @updateURL    https://raw.githubusercontent.com/wrtn321/userjs/main/json_log.user.js
 // @grant        GM_xmlhttpRequest
 // @license      MIT
 // ==/UserScript==
