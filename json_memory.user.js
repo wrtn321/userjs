@@ -1,12 +1,12 @@
 // ==UserScript==
-// @name         요약 메모리 백업/복원
+// @name         crack 요약 메모리 백업/복원
 // @namespace    http://tampermonkey.net/
 // @version      1.1
 // @description  요약메모리를 JSON으로 백업/복원
 // @author       뤼붕이
 // @match        https://crack.wrtn.ai/stories/*/episodes/*
-// @downloadURL  https://raw.githubusercontent.com/wrtn321/userjs/main/memoryj.user.js
-// @updateURL    https://raw.githubusercontent.com/wrtn321/userjs/main/memoryj.user.js
+// @downloadURL  https://raw.githubusercontent.com/wrtn321/userjs/main/json_memory.user.js
+// @updateURL    https://raw.githubusercontent.com/wrtn321/userjs/main/json_memory.user.js
 // @grant        GM_xmlhttpRequest
 // @license      MIT
 // ==/UserScript==
