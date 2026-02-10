@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         crack 요약 메모리 백업/복원
 // @namespace    http://tampermonkey.net/
-// @version      1.12
+// @version      1.13
 // @description  요약메모리를 JSON으로 백업/복원
 // @author       뤼붕이
 // @match        https://crack.wrtn.ai/stories/*/episodes/*
@@ -64,19 +64,26 @@
     // PART 2: 백업 및 복원 기능 구현
     // ===================================================================================
 
-    // [수정됨] 무한 루프 방지를 위해 중복 ID 체크 로직 추가
+    // [수정됨] Cursor 기반 페이지네이션 적용
     async function fetchSummariesByType(chatroomId, token, summaryType, button) {
         const allSummaries = [];
         const limit = 20;
-        let offset = 0;
+        let cursor = ''; // 커서 초기값 (비어있으면 첫 페이지)
         let page = 1;
-        const seenIds = new Set(); // 중복 데이터 체크를 위한 Set
+        const seenIds = new Set(); // 중복 방지용
 
         while (true) {
             const typeName = { longTerm: '장기', shortTerm: '단기', relationship: '관계도', goal: '목표' }[summaryType];
             button.textContent = `'${typeName}' 기억 불러오는 중... (${page}페이지)`;
 
-            let url = `${API_BASE}/crack-gen/v3/chats/${chatroomId}/summaries?limit=${limit}&offset=${offset}&type=${summaryType}&orderBy=newest`;
+            // offset 대신 cursor 사용
+            let url = `${API_BASE}/crack-gen/v3/chats/${chatroomId}/summaries?limit=${limit}&type=${summaryType}&orderBy=newest`;
+            
+            // 커서가 있다면 파라미터에 추가 (마지막 아이템의 ID)
+            if (cursor) {
+                url += `&cursor=${cursor}`;
+            }
+
             if (summaryType === 'longTerm') {
                 url += '&filter=all';
             }
@@ -84,34 +91,29 @@
             const summaryData = await apiRequest('GET', url, token);
             const fetchedSummaries = summaryData.summaries || [];
 
-            // 데이터가 없으면 종료
             if (fetchedSummaries.length === 0) break;
 
-            // [중요] 중복 데이터 검사
-            let isAllDuplicates = true;
+            // 중복 제거 및 데이터 추가
+            let addedCount = 0;
             for (const item of fetchedSummaries) {
-                // 이전에 본 적 없는 ID라면 추가
                 if (!seenIds.has(item._id)) {
                     seenIds.add(item._id);
                     allSummaries.push(item);
-                    isAllDuplicates = false;
+                    addedCount++;
                 }
             }
 
-            // 만약 이번 페이지에서 가져온 모든 데이터가 이미 있는 데이터라면?
-            // (API가 offset을 무시하고 계속 같은 데이터를 줄 때 무한루프 방지)
-            if (isAllDuplicates) {
-                console.log(`${typeName}: 중복 데이터 감지로 루프 종료`);
-                break;
-            }
+            // 이번 페이지에서 새로 추가된 게 하나도 없다면 종료 (무한루프 방지)
+            if (addedCount === 0) break;
 
-            // 가져온 데이터가 limit보다 적으면 더 이상 데이터가 없는 것이므로 종료
+            // 다음 요청을 위해 커서 업데이트 (현재 받은 데이터의 마지막 ID)
+            cursor = fetchedSummaries[fetchedSummaries.length - 1]._id;
+
+            // 가져온 데이터가 limit보다 적으면 더 이상 데이터가 없는 것
             if (fetchedSummaries.length < limit) break;
-
-            // 안전 장치: 페이지가 50페이지(약 1000개)를 넘어가면 강제 종료
-            if (page > 50) break;
-
-            offset += limit;
+            
+            // 안전장치
+            if (page > 100) break; 
             page++;
         }
         return allSummaries;
@@ -121,13 +123,12 @@
     async function backupSummaries(button) {
         const originalText = button.textContent;
         try {
-            button.textContent = '불러오는 중...';
+            button.textContent = '준비 중...';
             button.disabled = true;
             const token = getCookie('access_token');
             const { chatroomId } = getUrlInfo();
             if (!token || !chatroomId) throw new Error('인증 토큰이나 채팅방 ID를 찾을 수 없습니다.');
 
-            // 장기 기억, 단기 기억, 관계도, 목표 모두 백업 시도
             const summaryTypes = ['longTerm', 'shortTerm', 'relationship', 'goal'];
             const allData = {};
 
@@ -181,7 +182,6 @@
                 const content = await file.text();
                 let dataToRestore = JSON.parse(content);
 
-                // 이전 버전(단순 배열)과의 호환성 유지
                 if (Array.isArray(dataToRestore)) {
                     dataToRestore = { longTerm: dataToRestore };
                 }
@@ -190,8 +190,6 @@
                 const { chatroomId } = getUrlInfo();
                 if (!token || !chatroomId) throw new Error('인증 토큰이나 채팅방 ID를 찾을 수 없습니다.');
 
-                // 복원할 때도 장기기억 뿐만 아니라 파일에 있는 모든 타입 시도 (현재는 longTerm 위주)
-                // 유저 요청에 따라 'longTerm' 데이터만 우선적으로 복원합니다.
                 const summariesToInject = dataToRestore.longTerm;
 
                 if (!summariesToInject || !Array.isArray(summariesToInject) || summariesToInject.length === 0) {
@@ -226,7 +224,6 @@
         };
         fileInput.click();
     }
-
 
     // ===================================================================================
     // PART 3: UI 생성 및 스크립트 실행
