@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         crack 요약 메모리 백업/복원
 // @namespace    http://tampermonkey.net/
-// @version      1.14
+// @version      1.15
 // @description  요약메모리를 JSON으로 백업/복원
 // @author       뤼붕이
 // @match        https://crack.wrtn.ai/stories/*/episodes/*
@@ -64,11 +64,11 @@
     // PART 2: 백업 및 복원 기능 구현
     // ===================================================================================
 
-    // [수정됨] Cursor 값을 Base64로 인코딩하여 전송
+    // [수정됨] JSON 객체를 Base64로 인코딩하여 커서로 전송
     async function fetchSummariesByType(chatroomId, token, summaryType, button) {
         const allSummaries = [];
         const limit = 20;
-        let cursor = ''; // 커서 초기값 (비어있으면 첫 페이지)
+        let cursor = '';
         let page = 1;
         const seenIds = new Set(); // 중복 방지용
 
@@ -78,10 +78,9 @@
 
             let url = `${API_BASE}/crack-gen/v3/chats/${chatroomId}/summaries?limit=${limit}&type=${summaryType}&orderBy=newest`;
             
-            // [중요 수정] 커서가 있다면 Base64로 인코딩해서 파라미터에 추가
+            // 커서가 있다면 파라미터에 추가 (URI 인코딩 처리 포함)
             if (cursor) {
-                // btoa는 문자열을 Base64로 인코딩하는 JS 내장 함수입니다.
-                url += `&cursor=${cursor}`; 
+                url += `&cursor=${encodeURIComponent(cursor)}`; 
             }
 
             if (summaryType === 'longTerm') {
@@ -93,7 +92,6 @@
 
             if (fetchedSummaries.length === 0) break;
 
-            // 중복 제거 및 데이터 추가
             let addedCount = 0;
             for (const item of fetchedSummaries) {
                 if (!seenIds.has(item._id)) {
@@ -103,14 +101,21 @@
                 }
             }
 
-            // 이번 페이지에서 새로 추가된 게 하나도 없다면 종료 (무한루프 방지)
+            // 이번 페이지에서 새로 추가된 게 하나도 없다면 종료
             if (addedCount === 0) break;
 
-            // [중요 수정] 다음 요청을 위한 커서 업데이트 (마지막 아이템의 ID를 Base64로 변환)
-            const lastId = fetchedSummaries[fetchedSummaries.length - 1]._id;
-            cursor = btoa(lastId); // ID를 Base64로 인코딩
+            // [핵심 수정] 마지막 아이템의 정보를 JSON 객체로 만들어서 Base64 인코딩
+            const lastItem = fetchedSummaries[fetchedSummaries.length - 1];
+            
+            // 서버가 기대할만한 커서 포맷 (ID와 생성일시 포함)
+            const cursorObj = {
+                _id: lastItem._id,
+                createdAt: lastItem.createdAt // 최신순 정렬 시 보통 필요함
+            };
+            
+            // JSON 문자열로 변환 -> Base64 인코딩
+            cursor = btoa(JSON.stringify(cursorObj));
 
-            // 가져온 데이터가 limit보다 적으면 더 이상 데이터가 없는 것
             if (fetchedSummaries.length < limit) break;
             
             // 안전장치
