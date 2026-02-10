@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         crack 요약 메모리 백업/복원
 // @namespace    http://tampermonkey.net/
-// @version      1.1
+// @version      1.11
 // @description  요약메모리를 JSON으로 백업/복원
 // @author       뤼붕이
 // @match        https://crack.wrtn.ai/stories/*/episodes/*
@@ -35,18 +35,13 @@
         const wrtnId = getCookie('__w_id');
         return new Promise((resolve, reject) => {
             const headers = {
-                'Authorization': `Bearer ${token}`,
-                'platform': 'web',
-                'x-wrtn-id': wrtnId || ''
+                'Authorization': `Bearer ${token}`, 'platform': 'web', 'x-wrtn-id': wrtnId || ''
             };
             if (data) {
                 headers['Content-Type'] = 'application/json';
             }
             GM_xmlhttpRequest({
-                method: method,
-                url: url,
-                headers: headers,
-                data: data ? JSON.stringify(data) : null,
+                method: method, url: url, headers: headers, data: data ? JSON.stringify(data) : null,
                 onload: (res) => {
                     if (res.status >= 200 && res.status < 300) {
                         try {
@@ -61,30 +56,45 @@
     }
 
     // ===================================================================================
-    // PART 2: 백업 및 복원 기능 구현
+    // PART 2: 백업 및 복원 기능 구현 (fetchSummariesByType 함수 수정)
     // ===================================================================================
 
-    // 특정 타입의 요약 데이터를 가져오는 함수
+    /**
+     * 특정 타입의 요약 데이터를 가져오는 함수 (수정됨)
+     * 'longTerm' 타입에만 페이지네이션을 적용하고, 나머지는 한 번에 가져옵니다.
+     */
     async function fetchSummariesByType(chatroomId, token, summaryType, button) {
         const allSummaries = [];
-        const limit = 20;
-        let offset = 0;
-        let page = 1;
-        while (true) {
-            const typeName = { longTerm: '장기', shortTerm: '단기', relationship: '관계도', goal: '목표' }[summaryType];
-            button.textContent = `'${typeName}' 기억 불러오는 중... (${page}페이지)`;
-            let url = `${API_BASE}/crack-gen/v3/chats/${chatroomId}/summaries?limit=${limit}&offset=${offset}&type=${summaryType}&orderBy=newest`;
-            if (summaryType === 'longTerm') {
-                url += '&filter=all';
+        const typeName = { longTerm: '장기', shortTerm: '단기', relationship: '관계도', goal: '목표' }[summaryType];
+
+        // longTerm 타입일 경우에만 페이지네이션(나눠서 불러오기) 실행
+        if (summaryType === 'longTerm') {
+            const limit = 20;
+            let offset = 0;
+            let page = 1;
+            while (true) {
+                button.textContent = `'${typeName}' 기억 불러오는 중... (${page}페이지)`;
+                const url = `${API_BASE}/crack-gen/v3/chats/${chatroomId}/summaries?limit=${limit}&offset=${offset}&type=longTerm&orderBy=newest&filter=all`;
+                const summaryData = await apiRequest('GET', url, token);
+                const fetchedSummaries = summaryData.summaries || [];
+                if (fetchedSummaries.length > 0) {
+                    allSummaries.push(...fetchedSummaries);
+                }
+                // 가져온 데이터가 limit보다 작으면 마지막 페이지이므로 중단
+                if (fetchedSummaries.length < limit) break;
+                offset += limit;
+                page++;
             }
+        } else {
+            // 그 외 타입들은 페이지네이션 없이 한 번에 많이 요청 (최대 100개)
+            button.textContent = `'${typeName}' 기억 불러오는 중...`;
+            const highLimit = 100; // 넉넉한 개수 설정
+            const url = `${API_BASE}/crack-gen/v3/chats/${chatroomId}/summaries?limit=${highLimit}&type=${summaryType}&orderBy=newest`;
             const summaryData = await apiRequest('GET', url, token);
             const fetchedSummaries = summaryData.summaries || [];
             if (fetchedSummaries.length > 0) {
                 allSummaries.push(...fetchedSummaries);
             }
-            if (fetchedSummaries.length < limit) break;
-            offset += limit;
-            page++;
         }
         return allSummaries;
     }
@@ -170,12 +180,11 @@
                     const total = summariesToInject.length;
                     let successCount = 0;
                     const errors = [];
-
                     for (const [index, summary] of summariesToInject.reverse().entries()) {
                         if (summary.title && summary.summary) {
                             button.textContent = `장기기억 추가 중... (${index + 1}/${total})`;
                             try {
-                                const payload = { title: summary.title, summary: summary.summary, type: "longTerm" }; // 타입을 longTerm으로 고정
+                                const payload = { title: summary.title, summary: summary.summary, type: "longTerm" };
                                 const url = `${API_BASE}/crack-gen/v3/chats/${chatroomId}/summaries`;
                                 await apiRequest('POST', url, token, payload);
                                 successCount++;
@@ -186,7 +195,6 @@
                     }
                     alert(`장기기억 복원 완료!\n\n성공: ${successCount} / ${total}\n실패: ${total - successCount}건\n\n${errors.length > 0 ? '오류 목록:\n' + errors.join('\n') : ''}\n\n페이지를 새로고침하여 반영된 내용을 확인하세요.`);
                 }
-
             } catch (e) {
                 alert(`복원 중 오류 발생: ${e.message}`);
             } finally {
@@ -203,41 +211,32 @@
     // ===================================================================================
 
     function createButtons(footerContainer) {
-        if (footerContainer.querySelector('#summary-backup-restore-container')) {
-            return;
-        }
-
+        if (footerContainer.querySelector('#summary-backup-restore-container')) return;
+        footerContainer.style.justifyContent = 'space-between';
         const container = document.createElement('div');
         container.id = 'summary-backup-restore-container';
         container.style.display = 'flex';
         container.style.gap = '8px';
-
         const backupButton = document.createElement('button');
         backupButton.textContent = 'JSON 백업';
         backupButton.onclick = () => backupSummaries(backupButton);
-
         const restoreButton = document.createElement('button');
         restoreButton.textContent = 'JSON 복원';
         restoreButton.onclick = () => restoreSummaries(restoreButton);
-
         [backupButton, restoreButton].forEach(btn => {
             btn.className = "relative inline-flex items-center justify-center gap-1 overflow-hidden whitespace-nowrap text-sm font-medium transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus disabled:pointer-events-none disabled:opacity-50 h-9 rounded-md px-4 py-2 border border-solid border-border bg-background text-foreground hover:bg-accent active:bg-accent/80";
             btn.type = 'button';
         });
-
         container.appendChild(backupButton);
         container.appendChild(restoreButton);
-
         footerContainer.prepend(container);
     }
 
-    const observer = new MutationObserver((mutationsList, observer) => {
+    const observer = new MutationObserver(() => {
         const modalTitle = Array.from(document.querySelectorAll('h2')).find(h2 => h2.textContent.trim() === '요약 메모리');
         if (!modalTitle) return;
-
         const modal = modalTitle.closest('div[role="dialog"]');
         if (!modal) return;
-
         const editButton = Array.from(modal.querySelectorAll('button')).find(btn => btn.textContent.trim() === '편집');
         if (editButton && editButton.parentElement) {
             const footerContainer = editButton.parentElement;
