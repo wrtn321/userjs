@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         crack 요약 메모리 백업/복원
 // @namespace    http://tampermonkey.net/
-// @version      1.15
+// @version      1.1
 // @description  요약메모리를 JSON으로 백업/복원
 // @author       뤼붕이
 // @match        https://crack.wrtn.ai/stories/*/episodes/*
@@ -64,62 +64,26 @@
     // PART 2: 백업 및 복원 기능 구현
     // ===================================================================================
 
-    // [수정됨] JSON 객체를 Base64로 인코딩하여 커서로 전송
+    // 특정 타입의 요약 데이터를 가져오는 함수
     async function fetchSummariesByType(chatroomId, token, summaryType, button) {
         const allSummaries = [];
         const limit = 20;
-        let cursor = '';
+        let offset = 0;
         let page = 1;
-        const seenIds = new Set(); // 중복 방지용
-
         while (true) {
             const typeName = { longTerm: '장기', shortTerm: '단기', relationship: '관계도', goal: '목표' }[summaryType];
             button.textContent = `'${typeName}' 기억 불러오는 중... (${page}페이지)`;
-
-            let url = `${API_BASE}/crack-gen/v3/chats/${chatroomId}/summaries?limit=${limit}&type=${summaryType}&orderBy=newest`;
-            
-            // 커서가 있다면 파라미터에 추가 (URI 인코딩 처리 포함)
-            if (cursor) {
-                url += `&cursor=${encodeURIComponent(cursor)}`; 
-            }
-
+            let url = `${API_BASE}/crack-gen/v3/chats/${chatroomId}/summaries?limit=${limit}&offset=${offset}&type=${summaryType}&orderBy=newest`;
             if (summaryType === 'longTerm') {
                 url += '&filter=all';
             }
-
             const summaryData = await apiRequest('GET', url, token);
             const fetchedSummaries = summaryData.summaries || [];
-
-            if (fetchedSummaries.length === 0) break;
-
-            let addedCount = 0;
-            for (const item of fetchedSummaries) {
-                if (!seenIds.has(item._id)) {
-                    seenIds.add(item._id);
-                    allSummaries.push(item);
-                    addedCount++;
-                }
+            if (fetchedSummaries.length > 0) {
+                allSummaries.push(...fetchedSummaries);
             }
-
-            // 이번 페이지에서 새로 추가된 게 하나도 없다면 종료
-            if (addedCount === 0) break;
-
-            // [핵심 수정] 마지막 아이템의 정보를 JSON 객체로 만들어서 Base64 인코딩
-            const lastItem = fetchedSummaries[fetchedSummaries.length - 1];
-            
-            // 서버가 기대할만한 커서 포맷 (ID와 생성일시 포함)
-            const cursorObj = {
-                _id: lastItem._id,
-                createdAt: lastItem.createdAt // 최신순 정렬 시 보통 필요함
-            };
-            
-            // JSON 문자열로 변환 -> Base64 인코딩
-            cursor = btoa(JSON.stringify(cursorObj));
-
             if (fetchedSummaries.length < limit) break;
-            
-            // 안전장치
-            if (page > 100) break; 
+            offset += limit;
             page++;
         }
         return allSummaries;
@@ -129,7 +93,7 @@
     async function backupSummaries(button) {
         const originalText = button.textContent;
         try {
-            button.textContent = '준비 중...';
+            button.textContent = '불러오는 중...';
             button.disabled = true;
             const token = getCookie('access_token');
             const { chatroomId } = getUrlInfo();
@@ -188,6 +152,7 @@
                 const content = await file.text();
                 let dataToRestore = JSON.parse(content);
 
+                // 이전 버전(배열)과의 호환성 유지
                 if (Array.isArray(dataToRestore)) {
                     dataToRestore = { longTerm: dataToRestore };
                 }
@@ -196,6 +161,7 @@
                 const { chatroomId } = getUrlInfo();
                 if (!token || !chatroomId) throw new Error('인증 토큰이나 채팅방 ID를 찾을 수 없습니다.');
 
+                // --- longTerm 데이터만 복원 대상으로 지정 ---
                 const summariesToInject = dataToRestore.longTerm;
 
                 if (!summariesToInject || !Array.isArray(summariesToInject) || summariesToInject.length === 0) {
@@ -209,7 +175,7 @@
                         if (summary.title && summary.summary) {
                             button.textContent = `장기기억 추가 중... (${index + 1}/${total})`;
                             try {
-                                const payload = { title: summary.title, summary: summary.summary, type: "longTerm" };
+                                const payload = { title: summary.title, summary: summary.summary, type: "longTerm" }; // 타입을 longTerm으로 고정
                                 const url = `${API_BASE}/crack-gen/v3/chats/${chatroomId}/summaries`;
                                 await apiRequest('POST', url, token, payload);
                                 successCount++;
