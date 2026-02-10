@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         crack 요약 메모리 백업/복원
 // @namespace    http://tampermonkey.net/
-// @version      1.13
+// @version      1.14
 // @description  요약메모리를 JSON으로 백업/복원
 // @author       뤼붕이
 // @match        https://crack.wrtn.ai/stories/*/episodes/*
@@ -64,7 +64,7 @@
     // PART 2: 백업 및 복원 기능 구현
     // ===================================================================================
 
-    // [수정됨] Cursor 기반 페이지네이션 적용
+    // [수정됨] Cursor 값을 Base64로 인코딩하여 전송
     async function fetchSummariesByType(chatroomId, token, summaryType, button) {
         const allSummaries = [];
         const limit = 20;
@@ -76,12 +76,12 @@
             const typeName = { longTerm: '장기', shortTerm: '단기', relationship: '관계도', goal: '목표' }[summaryType];
             button.textContent = `'${typeName}' 기억 불러오는 중... (${page}페이지)`;
 
-            // offset 대신 cursor 사용
             let url = `${API_BASE}/crack-gen/v3/chats/${chatroomId}/summaries?limit=${limit}&type=${summaryType}&orderBy=newest`;
             
-            // 커서가 있다면 파라미터에 추가 (마지막 아이템의 ID)
+            // [중요 수정] 커서가 있다면 Base64로 인코딩해서 파라미터에 추가
             if (cursor) {
-                url += `&cursor=${cursor}`;
+                // btoa는 문자열을 Base64로 인코딩하는 JS 내장 함수입니다.
+                url += `&cursor=${cursor}`; 
             }
 
             if (summaryType === 'longTerm') {
@@ -106,8 +106,9 @@
             // 이번 페이지에서 새로 추가된 게 하나도 없다면 종료 (무한루프 방지)
             if (addedCount === 0) break;
 
-            // 다음 요청을 위해 커서 업데이트 (현재 받은 데이터의 마지막 ID)
-            cursor = fetchedSummaries[fetchedSummaries.length - 1]._id;
+            // [중요 수정] 다음 요청을 위한 커서 업데이트 (마지막 아이템의 ID를 Base64로 변환)
+            const lastId = fetchedSummaries[fetchedSummaries.length - 1]._id;
+            cursor = btoa(lastId); // ID를 Base64로 인코딩
 
             // 가져온 데이터가 limit보다 적으면 더 이상 데이터가 없는 것
             if (fetchedSummaries.length < limit) break;
@@ -224,6 +225,7 @@
         };
         fileInput.click();
     }
+
 
     // ===================================================================================
     // PART 3: UI 생성 및 스크립트 실행
