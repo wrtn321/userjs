@@ -1,12 +1,10 @@
 // ==UserScript==
 // @name         crack 요약 메모리 백업/복원
 // @namespace    http://tampermonkey.net/
-// @version      1.1
+// @version      1.3
 // @description  요약메모리를 JSON으로 백업/복원
 // @author       뤼붕이
 // @match        https://crack.wrtn.ai/stories/*/episodes/*
-// @downloadURL  https://raw.githubusercontent.com/wrtn321/userjs/main/json_memory.user.js
-// @updateURL    https://raw.githubusercontent.com/wrtn321/userjs/main/json_memory.user.js
 // @grant        GM_xmlhttpRequest
 // @license      MIT
 // ==/UserScript==
@@ -48,10 +46,16 @@
                 headers: headers,
                 data: data ? JSON.stringify(data) : null,
                 onload: (res) => {
-                    if (res.status >= 200 && res.status < 300) {
+                    if (res.status >= 200 && res.status < 300 || res.status === 304) {
                         try {
                             const responseData = JSON.parse(res.responseText);
-                            resolve(responseData.data !== undefined ? responseData.data : responseData);
+                            // API 응답 구조: { result: "SUCCESS", data: { summaries: [], nextCursor: "..." } }
+                            // 우리는 data 객체 내부를 반환해야 함
+                            if (responseData.data) {
+                                resolve(responseData.data);
+                            } else {
+                                resolve(responseData);
+                            }
                         } catch (e) { reject(new Error("JSON 파싱 실패")); }
                     } else { reject(new Error(`API 오류: ${res.status} - ${res.responseText}`)); }
                 },
@@ -64,27 +68,50 @@
     // PART 2: 백업 및 복원 기능 구현
     // ===================================================================================
 
-    // 특정 타입의 요약 데이터를 가져오는 함수
+    // [핵심 수정] 서버 응답 필드명을 'nextCursor'로 수정
     async function fetchSummariesByType(chatroomId, token, summaryType, button) {
         const allSummaries = [];
         const limit = 20;
-        let offset = 0;
+        let currentCursor = null; // 현재 사용 중인 커서
         let page = 1;
+
         while (true) {
             const typeName = { longTerm: '장기', shortTerm: '단기', relationship: '관계도', goal: '목표' }[summaryType];
             button.textContent = `'${typeName}' 기억 불러오는 중... (${page}페이지)`;
-            let url = `${API_BASE}/crack-gen/v3/chats/${chatroomId}/summaries?limit=${limit}&offset=${offset}&type=${summaryType}&orderBy=newest`;
+
+            // 기본 URL 생성
+            let url = `${API_BASE}/crack-gen/v3/chats/${chatroomId}/summaries?limit=${limit}&type=${summaryType}&orderBy=newest`;
+
+            // [중요] 다음 페이지 티켓(커서)이 있다면 URL에 붙임
+            if (currentCursor) {
+                url += `&cursor=${encodeURIComponent(currentCursor)}`;
+            }
+
+            // 장기기억일 경우 필터 추가
             if (summaryType === 'longTerm') {
                 url += '&filter=all';
             }
+
+            // API 요청
             const summaryData = await apiRequest('GET', url, token);
             const fetchedSummaries = summaryData.summaries || [];
+
             if (fetchedSummaries.length > 0) {
                 allSummaries.push(...fetchedSummaries);
             }
-            if (fetchedSummaries.length < limit) break;
-            offset += limit;
-            page++;
+
+            // [수정된 부분] 로그 확인 결과 필드명이 'nextCursor'임
+            if (summaryData.nextCursor) {
+                currentCursor = summaryData.nextCursor; // 다음 루프 때 쓸 티켓 챙기기
+                page++;
+            } else {
+                // nextCursor가 없으면 더 이상 페이지가 없다는 뜻
+                break;
+            }
+
+            // 안전장치
+            if (fetchedSummaries.length === 0) break;
+            if (page > 100) break;
         }
         return allSummaries;
     }
@@ -93,7 +120,7 @@
     async function backupSummaries(button) {
         const originalText = button.textContent;
         try {
-            button.textContent = '불러오는 중...';
+            button.textContent = '준비 중...';
             button.disabled = true;
             const token = getCookie('access_token');
             const { chatroomId } = getUrlInfo();
@@ -175,16 +202,26 @@
                         if (summary.title && summary.summary) {
                             button.textContent = `장기기억 추가 중... (${index + 1}/${total})`;
                             try {
-                                const payload = { title: summary.title, summary: summary.summary, type: "longTerm" }; // 타입을 longTerm으로 고정
+                                const payload = { title: summary.title, summary: summary.summary, type: "longTerm" };
                                 const url = `${API_BASE}/crack-gen/v3/chats/${chatroomId}/summaries`;
                                 await apiRequest('POST', url, token, payload);
                                 successCount++;
                             } catch (err) {
-                                errors.push(`'${summary.title}' 추가 실패: ${err.message}`);
+                                errors.push(`'${summary.title}'`);
                             }
                         }
                     }
-                    alert(`장기기억 복원 완료!\n\n성공: ${successCount} / ${total}\n실패: ${total - successCount}건\n\n${errors.length > 0 ? '오류 목록:\n' + errors.join('\n') : ''}\n\n페이지를 새로고침하여 반영된 내용을 확인하세요.`);
+
+                    // [수정됨] 결과 알림창 메시지 포맷 변경
+                    let resultMsg = `장기기억 복원 완료!\n\n성공: ${successCount} / ${total}`;
+
+                    if (errors.length > 0) {
+                        // 실패한 갯수 표시
+                        resultMsg += `\n실패: ${errors.length}건 (아마도 갯수(100개) 제한 초과)`;
+                        resultMsg += `\n\n[추가실패 목록]\n[${errors.join(', ')}]`;
+                    }
+
+                    alert(resultMsg);
                 }
 
             } catch (e) {
