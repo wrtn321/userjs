@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         채팅로그 json 다운
 // @namespace    http://tampermonkey.net/
-// @version      1.0
-// @description  채팅 로그를 지정된 형식의 JSON으로 저장.
+// @version      1.1
+// @description  채팅 로그를 지정된 형식의 JSON으로 저장
 // @author       뤼붕이
 // @match        https://crack.wrtn.ai/stories/*/episodes/*
 // @downloadURL  https://raw.githubusercontent.com/wrtn321/userjs/main/json_log.user.js
@@ -46,6 +46,7 @@
                     if (response.status >= 200 && response.status < 300) {
                         try {
                             const responseData = JSON.parse(response.responseText);
+                            // API 구조상 data 안에 nextCursor가 존재하므로 data를 반환해야 함
                             resolve(responseData.data !== undefined ? responseData.data : responseData);
                         } catch (e) {
                             reject(new Error("JSON 파싱 오류"));
@@ -64,23 +65,46 @@
         return m ? { chatroomId: m[2] } : {};
     }
 
-    // 특정 타입의 요약 데이터를 모두 가져오는 함수
+    // Cursor 로직 적용
     async function fetchAllSummariesByType(chatroomId, token, summaryType) {
         const allSummaries = [];
         const limit = 20;
-        let offset = 0;
+        let currentCursor = null; // 다음 페이지를 위한 커서
+        let page = 1;
+
         while (true) {
-            let url = `${API_BASE}/crack-gen/v3/chats/${chatroomId}/summaries?limit=${limit}&offset=${offset}&type=${summaryType}&orderBy=newest`;
+            // 기본 URL 생성
+            let url = `${API_BASE}/crack-gen/v3/chats/${chatroomId}/summaries?limit=${limit}&type=${summaryType}&orderBy=newest`;
+
+            // 커서가 존재하면 URL에 추가
+            if (currentCursor) {
+                url += `&cursor=${encodeURIComponent(currentCursor)}`;
+            }
+
+            // 장기 기억일 경우 필터 추가
             if (summaryType === 'longTerm') {
                 url += '&filter=all';
             }
+
             const summaryData = await apiRequest(url, token);
             const fetchedSummaries = summaryData.summaries || [];
+
             if (fetchedSummaries.length > 0) {
                 allSummaries.push(...fetchedSummaries);
             }
-            if (fetchedSummaries.length < limit) break;
-            offset += limit;
+
+            // [핵심] nextCursor 확인하여 다음 루프 결정
+            if (summaryData.nextCursor) {
+                currentCursor = summaryData.nextCursor;
+                page++;
+            } else {
+                // 더 이상 커서가 없으면 종료
+                break;
+            }
+
+            // 안전장치 (무한 루프 방지)
+            if (fetchedSummaries.length === 0) break;
+            if (page > 200) break; // 페이지 제한을 200으로 설정 (필요시 조정)
         }
         return allSummaries;
     }
@@ -92,6 +116,7 @@
         if (!token || !chatroomId) throw new Error('채팅방 정보를 읽을 수 없습니다.');
 
         // 5가지 주요 정보를 병렬로 요청
+        // 각 요약 메모리 함수가 이제 Cursor 방식으로 동작함
         const [chatDetails, messageData, profileInfo, longTermMem, shortTermMem, relationshipMem, goalMem] = await Promise.all([
             apiRequest(`${API_BASE}/crack-gen/v3/chats/${chatroomId}`, token),
             apiRequest(`${API_BASE}/crack-gen/v3/chats/${chatroomId}/messages?limit=2000`, token), // 메시지는 최대 2000개까지
@@ -160,7 +185,7 @@
 
         const originalText = btnText.textContent;
         try {
-            btnText.textContent = '저장 중...';
+            btnText.textContent = '데이터 수집 중...';
             button.disabled = true;
 
             const data = await fetchAllDataForJsonExport();
