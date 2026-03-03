@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         crack chat capture
 // @namespace    http://tampermonkey.net/
-// @version      1.73
+// @version      1.74
 // @description  뤼튼 크랙의 채팅 로그를 선택하여 캡쳐
 // @author       뤼붕이
 // @match        https://crack.wrtn.ai/stories/*/episodes/*
@@ -241,8 +241,12 @@
                 selectedMessages.reverse().forEach(msg => {
                     const clone = processMessageClone(msg);
 
-                    if (!clone.querySelector('.items-start, .items-end')) {
-                       clone.style.marginBottom = '20px';
+                    const isNovelType = clone.querySelector('.bg-transparent.rounded-none');
+
+                    if (isNovelType) {
+                        clone.style.marginBottom = '6px'; // 소설형일 때만 간격을 6px로 설정
+                    } else {
+                        clone.style.marginBottom = '20px'; // 일반 채팅형일 때는 기존처럼 20px (필요하면 조절)
                     }
 
                     captureArea.appendChild(clone);
@@ -293,7 +297,7 @@
         }
 
         const profileHeader = clone.querySelector('.flex.flex-row.justify-between.w-full');
-        if (profileHeader) {
+        if (profileHeader && !profileHeader.querySelector('.wrtn-markdown')) {
             profileHeader.remove();
         }
 
