@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         crack text copy
 // @namespace    http://tampermonkey.net/
-// @version      2.2
+// @version      2.21
 // @description  사용자 프롬프트와 함께 채팅로그를 복사
 // @author       뤼붕이
 // @match        https://crack.wrtn.ai/stories/*/episodes/*
