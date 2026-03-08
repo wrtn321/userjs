@@ -53,17 +53,19 @@
     // ===================================================================================
 
     // 턴계산방식: AI의 한 응답 = 1턴
+    // 턴계산방식: AI의 한 응답 = 1턴
     function groupMessagesIntoTurns(messages) {
         let turns =[];
-        let currentTurn = { turnNum: 1, messages:[] };
+        // 변경점 1: 시작 턴 번호를 1에서 0으로 변경
+        let currentTurn = { turnNum: 0, messages:[] };
 
         for (let i = 0; i < messages.length; i++) {
             const msg = messages[i];
 
             if (msg.role === 'assistant' && currentTurn.messages.length > 0) {
                 turns.push(currentTurn);
-                currentTurn = { turnNum: turns.length + 1, messages:[] };
-            }
+                // 변경점 2: turns.length + 1 에서 + 1을 제거
+                currentTurn = { turnNum: turns.length, messages:}
 
             currentTurn.messages.push(msg);
         }
