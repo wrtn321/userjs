@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         crack text copy
 // @namespace    http://tampermonkey.net/
-// @version      2.2
+// @version      2.3
 // @description  사용자 프롬프트와 함께 채팅로그를 복사
 // @author       뤼붕이
 // @match        https://crack.wrtn.ai/stories/*/episodes/*
@@ -23,7 +23,7 @@
             const defaults = {
                 copyMode: 'recent',
                 recentTurnCount: 10,
-                startTurn: 1,
+                startTurn: 0, // 0부터 시작하도록 기본값 변경
                 endTurn: 50,
                 showTurnNumbers: true,
                 selectedPromptId: 'none',
@@ -55,14 +55,14 @@
     // 턴계산방식: AI의 한 응답 = 1턴
     function groupMessagesIntoTurns(messages) {
         let turns =[];
-        let currentTurn = { turnNum: 1, messages:[] };
+        let currentTurn = { turnNum: 0, messages:[] }; // 0턴부터 시작
 
         for (let i = 0; i < messages.length; i++) {
             const msg = messages[i];
 
             if (msg.role === 'assistant' && currentTurn.messages.length > 0) {
                 turns.push(currentTurn);
-                currentTurn = { turnNum: turns.length + 1, messages:[] };
+                currentTurn = { turnNum: turns.length, messages:[] }; // 배열의 길이를 사용하면 자연스럽게 0, 1, 2... 순으로 증가함
             }
 
             currentTurn.messages.push(msg);
@@ -304,8 +304,9 @@
                             </label>
                             <label style="display:flex; align-items:center; gap:10px; cursor:pointer;">
                                 <input type="radio" name="copyMode" value="range" ${localConfig.copyMode === 'range' ? 'checked' : ''}>
-                                <span>특정 구간: <input id="crack-copy-start-turn" type="number" min="1" value="${localConfig.startTurn}" style="width:60px;padding:4px;border:1px solid ${c.border};border-radius:4px;background:${c.bg};color:${c.text};text-align:center;"> 턴 부터 ~
-                                <input id="crack-copy-end-turn" type="number" min="1" value="${localConfig.endTurn}" style="width:60px;padding:4px;border:1px solid ${c.border};border-radius:4px;background:${c.bg};color:${c.text};text-align:center;"> 턴 까지</span>
+                                <!-- 시작 번호가 0부터 가능하게 min을 0으로 수정 -->
+                                <span>특정 구간: <input id="crack-copy-start-turn" type="number" min="0" value="${localConfig.startTurn}" style="width:60px;padding:4px;border:1px solid ${c.border};border-radius:4px;background:${c.bg};color:${c.text};text-align:center;"> 턴 부터 ~
+                                <input id="crack-copy-end-turn" type="number" min="0" value="${localConfig.endTurn}" style="width:60px;padding:4px;border:1px solid ${c.border};border-radius:4px;background:${c.bg};color:${c.text};text-align:center;"> 턴 까지</span>
                             </label>
                         </div>
 
@@ -381,9 +382,16 @@
         getEl('crack-copy-save-settings').onclick = () => {
             const copyMode = document.querySelector('input[name="copyMode"]:checked').value;
             localConfig.copyMode = copyMode;
-            localConfig.recentTurnCount = parseInt(getEl('crack-copy-recent-turns').value, 10) || 0;
-            localConfig.startTurn = parseInt(getEl('crack-copy-start-turn').value, 10) || 1;
-            localConfig.endTurn = parseInt(getEl('crack-copy-end-turn').value, 10) || 50;
+
+            const rc = parseInt(getEl('crack-copy-recent-turns').value, 10);
+            localConfig.recentTurnCount = isNaN(rc) ? 0 : rc;
+
+            // 0을 입력했을 때도 0으로 정상 저장되도록 || 대신 isNaN 체크를 사용
+            const st = parseInt(getEl('crack-copy-start-turn').value, 10);
+            localConfig.startTurn = isNaN(st) ? 0 : st;
+
+            const et = parseInt(getEl('crack-copy-end-turn').value, 10);
+            localConfig.endTurn = isNaN(et) ? 50 : et;
 
             localConfig.showTurnNumbers = getEl('crack-copy-show-turn-num').checked;
             localConfig.includePersona = getEl('crack-copy-include-persona').checked;
