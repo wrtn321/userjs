@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name         크랙 html 저장
+// @name         📄 크랙 html 저장
 // @namespace    http://tampermonkey.net/
 // @version      2.2
 // @description  채팅로그를 HTML로 저장
