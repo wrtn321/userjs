@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name         crack 요약 메모리 백업/복원
+// @name         📚 crack 요약 메모리 백업/복원
 // @namespace    http://tampermonkey.net/
 // @version      1.3
 // @description  요약메모리를 JSON으로 백업/복원
