@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name         crack chat capture
+// @name         📸 crack chat capture
 // @namespace    http://tampermonkey.net/
 // @version      1.74
 // @description  뤼튼 크랙의 채팅 로그를 선택하여 캡쳐
