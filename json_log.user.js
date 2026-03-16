@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name         채팅로그 json 다운
+// @name         💾 채팅로그 json 다운
 // @namespace    http://tampermonkey.net/
 // @version      1.1
 // @description  채팅 로그를 지정된 형식의 JSON으로 저장
