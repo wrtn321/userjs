@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         📚 crack 요약 메모리 백업/복원
 // @namespace    http://tampermonkey.net/
-// @version      1.4
+// @version      1.41
 // @description  요약메모리를 JSON으로 백업/복원 + 장기요약 투명주석으로 복사
 // @author       뤼붕이
 // @match        https://crack.wrtn.ai/*
