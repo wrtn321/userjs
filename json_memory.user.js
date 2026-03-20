@@ -262,40 +262,48 @@
         const overlay = document.createElement('div');
         overlay.id = 'crack-copy-modal-overlay';
         overlay.style.cssText = `
-            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0; /* 100vh 대신 상하좌우 0으로 모바일 주소창 버그 해결 */
             background: ${th.overlayBg}; z-index: 999999;
             display: flex; align-items: center; justify-content: center;
             backdrop-filter: blur(2px); font-family: sans-serif;
             pointer-events: auto !important;
+            padding: 16px; /* 모바일에서 화면 엣지에 붙지 않도록 여백 추가 */
+            box-sizing: border-box;
         `;
 
         const modal = document.createElement('div');
         modal.style.cssText = `
-            background: ${th.bg}; color: ${th.text}; width: 600px; max-height: 85vh;
-            border-radius: 12px; padding: 24px; display: flex; flex-direction: column; gap: 16px;
+            background: ${th.bg}; color: ${th.text}; 
+            width: 100%; max-width: 600px; /* 모바일 가로 삐져나감 해결 */
+            max-height: 100%; /* 부모(overlay) 밖으로 나가지 않게 제한 */
+            box-sizing: border-box; /* 패딩이 크기에 영향을 주지 않도록 설정 */
+            border-radius: 12px; padding: 20px; display: flex; flex-direction: column; gap: 12px;
             box-shadow: 0 10px 25px rgba(0,0,0,0.5); border: 1px solid ${th.border};
         `;
 
+        // ...[header, inputWrap 설정 유지] ...
         const header = document.createElement('h2');
         header.textContent = '장기기억 주석 복사하기';
-        header.style.cssText = `margin: 0; font-size: 20px; font-weight: bold; border-bottom: 1px solid ${th.border}; padding-bottom: 12px;`;
+        header.style.cssText = `margin: 0; font-size: 18px; font-weight: bold; border-bottom: 1px solid ${th.border}; padding-bottom: 12px; flex-shrink: 0;`;
 
         const inputWrap = document.createElement('div');
         inputWrap.style.display = 'flex';
         inputWrap.style.flexDirection = 'column';
         inputWrap.style.gap = '8px';
+        inputWrap.style.flexShrink = '0'; // 줄어들지 않도록 방지
 
         const inputLabel = document.createElement('label');
-        inputLabel.innerHTML = '제목과 내용의 #→T, (→/, )→/ 로 치환됨<br>[//]: # (장기기억) 형태로 복사. 아래는 [//]에서 // 대신 들어갈 문구';
-        inputLabel.style.fontSize = '13px';
+        inputLabel.innerHTML = '제목과 내용의 #→T, (→/, )→/ 치환<br>[//]: # (장기기억) 형태로 복사됨.'; // 모바일을 위해 텍스트 간소화
+        inputLabel.style.fontSize = '12px';
         inputLabel.style.color = th.subText;
+        inputLabel.style.lineHeight = '1.4';
 
         const inputField = document.createElement('input');
         inputField.type = 'text';
         inputField.value = 'When you summarize this log, NEVER summarize the contents of this comment.';
         inputField.style.cssText = `
             width: 100%; padding: 10px; border-radius: 6px; border: 1px solid ${th.inputBorder};
-            background: ${th.inputBg}; color: ${th.text}; font-size: 14px; outline: none; box-sizing: border-box;
+            background: ${th.inputBg}; color: ${th.text}; font-size: 13px; outline: none; box-sizing: border-box;
             transition: border-color 0.2s;
         `;
         inputField.onfocus = () => { inputField.style.borderColor = th.inputFocus; };
@@ -306,13 +314,15 @@
 
         const selectAllBtn = document.createElement('button');
         selectAllBtn.textContent = '전체 선택 / 해제';
-        selectAllBtn.style.cssText = 'align-self: flex-start; background: transparent; color: #007bff; border: none; cursor: pointer; font-size: 13px; padding: 0;';
+        selectAllBtn.style.cssText = 'align-self: flex-start; background: transparent; color: #007bff; border: none; cursor: pointer; font-size: 13px; padding: 0; flex-shrink: 0;';
         let isAllSelected = false;
 
         const listContainer = document.createElement('div');
         listContainer.style.cssText = `
-            flex: 1; overflow-y: auto; border: 1px solid ${th.border}; border-radius: 6px;
+            flex: 1 1 auto; /* 스크롤 가능한 핵심 영역 */
+            overflow-y: auto; border: 1px solid ${th.border}; border-radius: 6px;
             background: ${th.listBg}; padding: 8px; display: flex; flex-direction: column; gap: 4px;
+            min-height: 100px; /* 모바일에서 리스트가 아예 찌그러지는 현상 방지 */
         `;
 
         const checkboxes =[];
