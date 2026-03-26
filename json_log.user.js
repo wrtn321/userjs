@@ -5,8 +5,8 @@
 // @description  채팅 로그를 JSON으로 저장
 // @author       뤼붕이
 // @match        https://crack.wrtn.ai/*
-// @downloadURL  https://raw.githubusercontent.com/wrtn321/userjs/main/json_log_full.user.js
-// @updateURL    https://raw.githubusercontent.com/wrtn321/userjs/main/json_log_full.user.js
+// @downloadURL  https://raw.githubusercontent.com/wrtn321/userjs/main/json_log.user.js
+// @updateURL    https://raw.githubusercontent.com/wrtn321/userjs/main/json_log.user.js
 // @grant        GM_xmlhttpRequest
 // @license      MIT
 // ==/UserScript==
@@ -187,7 +187,7 @@
                 messages: data.messages
             };
 
-            const filename = `${output.title.replace(/[\\/:*?"<>|]/g, '')}_${new Date().toISOString().slice(0, 10)}_full.json`;
+            const filename = `${output.title.replace(/[\\/:*?"<>|]/g, '')}_${new Date().toISOString().slice(0, 10)}.json`;
             downloadFile(JSON.stringify(output, null, 2), filename);
 
             btnText.textContent = '저장 완료!';
@@ -232,7 +232,7 @@
             <button class="w-full flex h-4 items-center justify-between typo-110-16-med space-x-2 [&amp;_svg]:fill-icon_tertiary ring-offset-4 ring-offset-sidebar" style="cursor: pointer;">
                 <span class="flex space-x-2 items-center">
                     <span style="font-size: 16px;">💾</span>
-                    <span class="btn-text whitespace-nowrap overflow-hidden text-ellipsis typo-text-sm_leading-none_medium">전체 JSON 저장</span>
+                    <span class="btn-text whitespace-nowrap overflow-hidden text-ellipsis typo-text-sm_leading-none_medium">JSON 저장</span>
                 </span>
             </button>
         `;
