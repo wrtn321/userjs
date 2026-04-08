@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         📦 crack chat 백업/복원
 // @namespace    http://tampermonkey.net/
-// @version      1.0
+// @version      1.1
 // @description  채팅방 정보를 JSON으로 백업 및 복원
 // @author       뤼붕이
 // @match        https://crack.wrtn.ai/*
@@ -118,13 +118,50 @@
             }
         } catch (e) {}
 
-        const messages = (messageData?.messages || []).reverse().map(msg => {
+        // ----------------------------------------------------
+        // parentTurnId 역추적
+        // ----------------------------------------------------
+        let rawMessages = messageData?.messages || [];
+        let mainTimeline = [];
+        let currentParent = null;
+
+        if (rawMessages.length > 0) {
+            // API는 최신 메시지를 0번 인덱스에 줍니다.
+            for (let i = 0; i < rawMessages.length; i++) {
+                let msg = rawMessages[i];
+                if (mainTimeline.length === 0) {
+                    mainTimeline.push(msg);
+                    currentParent = msg.parentTurnId;
+                } else {
+                    if (msg.turnId === currentParent) {
+                        mainTimeline.push(msg);
+                        currentParent = msg.parentTurnId;
+                    }
+                }
+            }
+        }
+
+        // 만약 트리가 끊기는 알 수 없는 오류 발생 시 안전장치
+        if (mainTimeline.length < rawMessages.length * 0.1 && rawMessages.length > 5) {
+            console.warn("트리 추적에 실패하여 원본 전체를 저장합니다.");
+            mainTimeline = rawMessages;
+        }
+
+        // 가장 오래된 메시지(프롤로그)부터 순서대로 맵핑
+        const messages = mainTimeline.reverse().map(msg => {
             let role = msg.role === 'assistant' ? 'assistant' : 'user';
             let content = msg.content;
+
+            let obj = {
+                role: role,
+                content: content,
+                reroll: !!msg.reroll
+            };
+
             if (role === 'assistant' && (!content || content.trim() === '')) {
-                return { role: role, content: content, type: "error" };
+                obj.type = "error";
             }
-            return { role: role, content: content };
+            return obj;
         });
 
         return { chatDetails, userNote, userPersona, summaryMemory: { longTerm: longTermMem, shortTerm: shortTermMem, relationship: relationshipMem, goal: goalMem }, messages };
@@ -147,7 +184,7 @@
 
             const filename = `${output.title.replace(/[\\/:*?"<>|]/g, '')}_${new Date().toISOString().slice(0, 10)}.json`;
             downloadFile(JSON.stringify(output, null, 2), filename);
-            statusTextElement.textContent = `✅ 백업 완료 (${data.messages.length}개 대화)`;
+            statusTextElement.textContent = `✅ 백업 완료 (${data.messages.length}개 턴)`;
             statusTextElement.style.color = '#10B981';
         } catch (error) {
             statusTextElement.textContent = `❌ 백업 실패: ${error.message}`;
