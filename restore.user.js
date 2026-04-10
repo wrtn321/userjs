@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         📦 crack chat 백업/복원
 // @namespace    http://tampermonkey.net/
-// @version      1.1
+// @version      1.2
 // @description  채팅방 정보를 JSON으로 백업 및 복원
 // @author       뤼붕이
 // @match        https://crack.wrtn.ai/*
@@ -271,7 +271,7 @@
     // ==========================================
     // 메인 복원 실행
     // ==========================================
-    async function doRestore(jsonData, statusTextElement, turnConfig) {
+        async function doRestore(jsonData, statusTextElement, turnConfig, wantMemoryRestore = true) {
         if (!checkIsNormalChatMode()) { statusTextElement.textContent = "상태 대기 중..."; return; }
         const chatroomId = getChatroomId();
         if (!chatroomId) return originalAlert("채팅방 ID 없음");
@@ -395,14 +395,14 @@
             }
 
             // 기억 주입
-            if (jsonData.summaryMemory && jsonData.summaryMemory.longTerm && jsonData.summaryMemory.longTerm.length > 0) {
+            if (wantMemoryRestore && jsonData.summaryMemory && jsonData.summaryMemory.longTerm && jsonData.summaryMemory.longTerm.length > 0) {
                 statusTextElement.textContent = "🧹 기존 장기기억 청소 중...";
                 try {
                     let existingMemories = await fetchAllSummariesByType(chatroomId, 'longTerm');
                     if (existingMemories.length > 0) {
                         const summaryIds = existingMemories.map(m => m._id);
                         await apiRequest(`${BASE_DOMAIN}/crack-gen/v3/chats/${chatroomId}/summaries`, "DELETE", { summaryIds: summaryIds });
-                        await sleep(1000);
+                        await sleep(1000); 
                     }
                 } catch (e) {}
 
@@ -415,6 +415,8 @@
                         } catch (e) {}
                     }
                 }
+            } else if (!wantMemoryRestore) {
+                console.log("사용자 선택에 의해 장기기억 복원을 건너뜁니다.");
             }
 
             // 유저노트 셋팅
@@ -507,15 +509,18 @@
             reader.onload = function(evt) {
                 try {
                     const jsonData = JSON.parse(evt.target.result);
-                    if (originalAlert === window.alert) {
+                    if (originalAlert === window.alert) { 
                         if (confirm("⚠ 확인해주세요 ⚠\n1. 복원을 원하는 새로운 채팅방이 맞나요?\n2. '일반챗' 모드가 맞나요?\n3. 올바른 '대화 프로필'을 선택했나요?\n('대화 프로필'은 자동으로 복원하지 않으며, 잘못된 '대화 프로필'은 요약메모리가 꼬일 수 있어요.)\n")) {
-
+                            
                             let turnInput = prompt(`몇 개의 메시지를 복원하시겠습니까?\nAI메시지 + user메시지 = 2개의 메시지로 인식됩니다.\n\n- 최근 n개 (0 입력 시, 전체복원. 최대 ${MAX_TURN_LIMIT}개)\n- 범위 적용 (예: 2~10 입력 시 2번째 메시지부터 복원)`, "0");
-
+                            
                             if (turnInput === null) {
-                                fileInput.value = "";
+                                fileInput.value = ""; 
                                 return;
                             }
+
+                            // [추가된 부분] 장기기억 복원 여부 묻기
+                            let wantMemoryRestore = confirm("기존 장기기억을 모두 지우고 백업본의 장기기억으로 덮어씌우시겠습니까?\n\n[확인] : 기존 기억 모두 삭제 후 백업본 주입\n[취소] : 기억은 건드리지 않음 (채팅만 복원)");
 
                             let turnConfig = { type: 'all' };
 
@@ -535,15 +540,16 @@
                                     }
                                 }
                             }
-
-                            doRestore(jsonData, statusText, turnConfig);
-                        } else {
-                            fileInput.value = "";
+                            
+                            // doRestore에 wantMemoryRestore 값을 같이 넘겨줍니다.
+                            doRestore(jsonData, statusText, turnConfig, wantMemoryRestore);
+                        } else { 
+                            fileInput.value = ""; 
                         }
                     }
                 } catch (err) { originalAlert("잘못된 JSON 파일입니다."); }
-
-                fileInput.value = "";
+                
+                fileInput.value = ""; 
             };
             reader.readAsText(file);
         });
