@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         📦 crack chat 백업/복원
 // @namespace    http://tampermonkey.net/
-// @version      1.2
-// @description  채팅방 정보를 JSON으로 백업 및 복원
+// @version      1.3
+// @description  채팅방 정보를 JSON으로 백업 및 파워챗 이용(유료) 복원
 // @author       뤼붕이
 // @match        https://crack.wrtn.ai/*
 // @grant        none
@@ -126,7 +126,6 @@
         let currentParent = null;
 
         if (rawMessages.length > 0) {
-            // API는 최신 메시지를 0번 인덱스에 줍니다.
             for (let i = 0; i < rawMessages.length; i++) {
                 let msg = rawMessages[i];
                 if (mainTimeline.length === 0) {
@@ -141,13 +140,11 @@
             }
         }
 
-        // 만약 트리가 끊기는 알 수 없는 오류 발생 시 안전장치
         if (mainTimeline.length < rawMessages.length * 0.1 && rawMessages.length > 5) {
             console.warn("트리 추적에 실패하여 원본 전체를 저장합니다.");
             mainTimeline = rawMessages;
         }
 
-        // 가장 오래된 메시지(프롤로그)부터 순서대로 맵핑
         const messages = mainTimeline.reverse().map(msg => {
             let role = msg.role === 'assistant' ? 'assistant' : 'user';
             let content = msg.content;
@@ -184,7 +181,7 @@
 
             const filename = `${output.title.replace(/[\\/:*?"<>|]/g, '')}_${new Date().toISOString().slice(0, 10)}.json`;
             downloadFile(JSON.stringify(output, null, 2), filename);
-            statusTextElement.textContent = `✅ 백업 완료 (${data.messages.length}개 턴)`;
+            statusTextElement.textContent = `✅ 백업 완료 (${data.messages.length}개 대화)`;
             statusTextElement.style.color = '#10B981';
         } catch (error) {
             statusTextElement.textContent = `❌ 백업 실패: ${error.message}`;
@@ -217,8 +214,8 @@
         const sendBtn = getSendButton();
         if (!sendBtn) return false;
         const bgColor = window.getComputedStyle(sendBtn).backgroundColor;
-        if (bgColor !== 'rgb(133, 131, 125)') {
-            originalAlert(`⛔ 오류: 현재 '일반챗' 모드가 아닙니다!\n\n1. 상단 모델을 [일반챗]으로 변경\n2. 채팅창에 입력된 글자 지우기\n확인 후 다시 실행해주세요.`);
+        if (bgColor !== 'rgb(23, 211, 36)') {
+            originalAlert(`⛔ 오류: 현재 '파티챗' 모드가 아닙니다!\n\n1. 상단 모델을 [파티챗]으로 변경\n2. 채팅창에 입력된 글자 지우기\n확인 후 다시 실행해주세요.`);
             return false;
         }
         return true;
@@ -269,14 +266,16 @@
     }
 
     // ==========================================
-    // 메인 복원 실행
+    // 메인 복원 실행 (새 방 감지 + 에러 번호 안내 + 기억 선택)
     // ==========================================
-        async function doRestore(jsonData, statusTextElement, turnConfig, wantMemoryRestore = true) {
+    async function doRestore(jsonData, statusTextElement, turnConfig, wantMemoryRestore = true) {
         if (!checkIsNormalChatMode()) { statusTextElement.textContent = "상태 대기 중..."; return; }
         const chatroomId = getChatroomId();
         if (!chatroomId) return originalAlert("채팅방 ID 없음");
 
         window.alert = function(msg) { console.warn("Wrtn 서버 에러 알림 차단됨:", msg); };
+
+        let currentIndexForError = 0; // 에러 났을 때 몇 번째인지 기억하는 변수
 
         try {
             let allMessages = jsonData.messages || [];
@@ -292,7 +291,6 @@
                     let endIndex = turnConfig.end;
                     messagesToRestore = allMessages.slice(startIndex, endIndex);
                 } else {
-                    // 전체 복원 시 무제한이 아니라 MAX_TURN_LIMIT까지만 자르기 (안전장치)
                     if (allMessages.length > MAX_TURN_LIMIT) {
                         console.warn(`전체 복원(${allMessages.length}개)이 제한량(${MAX_TURN_LIMIT}개)을 초과하여 자릅니다.`);
                         messagesToRestore = allMessages.slice(-MAX_TURN_LIMIT);
@@ -303,37 +301,45 @@
 
                 let index = 0;
 
+                // [새 방 / 쓰던 방 자동 감지 로직]
                 if (messagesToRestore.length > 0) {
-                    statusTextElement.textContent = "📖 기본 세팅 중...";
-                    const recent = await apiRequest(`${BASE_DOMAIN}/crack-gen/v3/chats/${chatroomId}/messages?limit=1&orderBy=newest`);
-                    const msgs = recent.messages || recent;
+                    statusTextElement.textContent = "📖 방 상태 분석 중...";
+                    const roomCheck = await apiRequest(`${BASE_DOMAIN}/crack-gen/v3/chats/${chatroomId}/messages?limit=2&orderBy=newest`);
+                    const roomMsgs = roomCheck.messages || roomCheck;
 
-                    if (msgs && msgs.length > 0) {
-                        let roomLastRole = msgs[0].role;
+                    const isBrandNewRoom = (roomMsgs && roomMsgs.length === 1);
+
+                    if (isBrandNewRoom) {
+                        statusTextElement.textContent = "📖 첫 세팅 (새 방 감지)...";
+                        let roomLastRole = roomMsgs[0].role;
                         let jsonFirstRole = messagesToRestore[0].role;
 
                         if (roomLastRole === 'assistant') {
                             if (jsonFirstRole === 'assistant') {
-                                await tryMimicPatch(chatroomId, msgs[0]._id, messagesToRestore[0].content);
+                                await tryMimicPatch(chatroomId, roomMsgs[0]._id, messagesToRestore[0].content);
                                 index = 1;
                             } else {
-                                await tryMimicPatch(chatroomId, msgs[0]._id, "-");
+                                await tryMimicPatch(chatroomId, roomMsgs[0]._id, "-");
                                 index = 0;
                             }
                         }
                         else if (roomLastRole === 'user') {
                             if (jsonFirstRole === 'assistant') {
-                                await tryMimicPatch(chatroomId, msgs[0]._id, messagesToRestore[0].content);
+                                await tryMimicPatch(chatroomId, roomMsgs[0]._id, messagesToRestore[0].content);
                                 index = 1;
                             } else {
-                                await tryMimicPatch(chatroomId, msgs[0]._id, "-");
+                                await tryMimicPatch(chatroomId, roomMsgs[0]._id, "-");
                                 index = 0;
                             }
                         }
+                    } else {
+                        statusTextElement.textContent = "📖 이어서 복원 (쓰던 방 감지)...";
+                        index = 0; // 쓰던 방이면 기존 마지막 메시지 냅두고 무조건 이어서 작성!
                     }
                 }
 
                 while (index < messagesToRestore.length) {
+                    currentIndexForError = index; // 현재 인덱스 저장
                     let currentMsg = messagesToRestore[index];
                     let success = false;
                     let retryCount = 0;
@@ -394,7 +400,7 @@
                 }
             }
 
-            // 기억 주입
+            // [장기기억 주입 분기 처리]
             if (wantMemoryRestore && jsonData.summaryMemory && jsonData.summaryMemory.longTerm && jsonData.summaryMemory.longTerm.length > 0) {
                 statusTextElement.textContent = "🧹 기존 장기기억 청소 중...";
                 try {
@@ -402,7 +408,7 @@
                     if (existingMemories.length > 0) {
                         const summaryIds = existingMemories.map(m => m._id);
                         await apiRequest(`${BASE_DOMAIN}/crack-gen/v3/chats/${chatroomId}/summaries`, "DELETE", { summaryIds: summaryIds });
-                        await sleep(1000); 
+                        await sleep(1000);
                     }
                 } catch (e) {}
 
@@ -440,9 +446,10 @@
             window.location.reload();
 
         } catch (error) {
-            statusTextElement.textContent = "❌ 복원 실패";
+            let resumeNumber = currentIndexForError + 1;
+            statusTextElement.textContent = `❌ 실패 (${resumeNumber}번째부터 재시도)`;
             statusTextElement.style.color = '#EF4444';
-            originalAlert(`복원 중 에러가 발생했습니다:\n${error.message}`);
+            originalAlert(`복원 중 에러가 발생했습니다:\n${error.message}\n\n서버가 안정화된 후, 복원 입력창에 ${resumeNumber} 부터 이어서 복원하시면 됩니다!`);
         } finally {
             window.alert = originalAlert;
         }
@@ -509,17 +516,17 @@
             reader.onload = function(evt) {
                 try {
                     const jsonData = JSON.parse(evt.target.result);
-                    if (originalAlert === window.alert) { 
-                        if (confirm("⚠ 확인해주세요 ⚠\n1. 복원을 원하는 새로운 채팅방이 맞나요?\n2. '일반챗' 모드가 맞나요?\n3. 올바른 '대화 프로필'을 선택했나요?\n('대화 프로필'은 자동으로 복원하지 않으며, 잘못된 '대화 프로필'은 요약메모리가 꼬일 수 있어요.)\n")) {
-                            
-                            let turnInput = prompt(`몇 개의 메시지를 복원하시겠습니까?\nAI메시지 + user메시지 = 2개의 메시지로 인식됩니다.\n\n- 최근 n개 (0 입력 시, 전체복원. 최대 ${MAX_TURN_LIMIT}개)\n- 범위 적용 (예: 2~10 입력 시 2번째 메시지부터 복원)`, "0");
-                            
+                    if (originalAlert === window.alert) {
+                        if (confirm("⚠ 확인해주세요 ⚠\n1. 복원을 원하는 방이 맞나요?\n2. '파티챗' 모드가 맞나요?\n3. 올바른 '대화 프로필'을 선택했나요? (잘못된 대화프로필은 요약메모리가 망가질 수 있어요.)\n4. 작업 도중 채팅입력창에 채팅을 치거나 추천응답을 켜는 등 화면을 조작하지 마세요. (메시지가 누락될 수 있어요.)\n5. 마지막 채팅에 리롤이 남아있다면 최종응답을 제외하고는 지워주세요. (마지막 채팅에 한해 리롤 수만큼 추가 크래커가 소비돼요.)\n")) {
+
+                            let turnInput = prompt(`몇 개의 메시지를 복원하시겠습니까?\nAI메시지 + user메시지 = 2개의 메시지로 인식됩니다.\n\n- 전체 복원: 0 (최대 ${MAX_TURN_LIMIT}개)\n- 최근 n개: 숫자 입력\n- 범위 적용: 2~10 (2번째부터 복원)`, "0");
+
                             if (turnInput === null) {
-                                fileInput.value = ""; 
+                                fileInput.value = "";
                                 return;
                             }
 
-                            // [추가된 부분] 장기기억 복원 여부 묻기
+                            // [장기기억 복원 여부 질문]
                             let wantMemoryRestore = confirm("기존 장기기억을 모두 지우고 백업본의 장기기억으로 덮어씌우시겠습니까?\n\n[확인] : 기존 기억 모두 삭제 후 백업본 주입\n[취소] : 기억은 건드리지 않음 (채팅만 복원)");
 
                             let turnConfig = { type: 'all' };
@@ -540,16 +547,15 @@
                                     }
                                 }
                             }
-                            
-                            // doRestore에 wantMemoryRestore 값을 같이 넘겨줍니다.
+
                             doRestore(jsonData, statusText, turnConfig, wantMemoryRestore);
-                        } else { 
-                            fileInput.value = ""; 
+                        } else {
+                            fileInput.value = "";
                         }
                     }
                 } catch (err) { originalAlert("잘못된 JSON 파일입니다."); }
-                
-                fileInput.value = ""; 
+
+                fileInput.value = "";
             };
             reader.readAsText(file);
         });
