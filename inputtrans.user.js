@@ -1,9 +1,10 @@
 // ==UserScript==
 // @name         🌍 crack input translator
 // @namespace    http://tampermonkey.net/
-// @version      1.0
-// @description  유저 입력을 프롬프트를 지정하여 번역
-// @match        https://crack.wrtn.ai/stories/*
+// @version      1.1
+// @description  유저의 입력을 원하는 언어로 번역
+// @author       뤼붕이
+// @match        https://crack.wrtn.ai/*
 // @grant        GM_xmlhttpRequest
 // @connect      generativelanguage.googleapis.com
 // @connect      api.deepseek.com
@@ -25,8 +26,8 @@
         "gemini-3.5-flash": { input: 1.50, output: 9.00, cacheRead: 0.15, cacheWrite: 1.50 },
         "gemini-3.1-pro-preview": { input: 2.00, output: 12.00, cacheRead: 0.20, cacheWrite: 2.00 },
         "gemini-2.5-pro": { input: 1.25, output: 10.00, cacheRead: 0.125, cacheWrite: 1.25 },
-        "deepseek-v4-flash": { input: 0.14, output: 0.28, cacheRead: 0.0028, cacheWrite: 0.14 },
-        "deepseek-v4-pro": { input: 0.435, output: 0.87, cacheRead: 0.003625, cacheWrite: 0.435 }
+        "deepseek-v4-pro": { input: 0.435, output: 0.87, cacheRead: 0.003625, cacheWrite: 0.435 },
+        "deepseek-v4-flash": { input: 0.14, output: 0.28, cacheRead: 0.0028, cacheWrite: 0.14 }
     };
 
     function normalizeUsage(raw, fallbackModel) {
@@ -41,7 +42,7 @@
         };
     }
 
-    function calculateCost(usage, modelOverride) {
+function calculateCost(usage, modelOverride) {
         const norm = normalizeUsage(usage, modelOverride);
         if (!norm) return { usd: 0, krw: 0, str: "요금 계산 불가" };
 
@@ -50,19 +51,28 @@
 
         const readTokens = norm.cacheReadInputTokens || 0;
         const inputTokens = norm.inputTokens || 0;
-        const outputTokens = norm.outputTokens || 0;
         const thoughtsTokens = norm.thoughtsTokenCount || 0;
+        const totalOutputTokens = norm.outputTokens || 0;
+
+        // 일반입력 = 총 입력 - 캐시읽기
+        let writeTokens = Math.max(0, inputTokens - readTokens);
+
+        // 제미나이는 일반출력과 추론출력이 별도지만, 딥시크는 일반출력 안에 추론이 포함되어 있음
+        let pureOutputTokens = totalOutputTokens;
+        if (modelOverride && modelOverride.includes("deepseek")) {
+            pureOutputTokens = Math.max(0, totalOutputTokens - thoughtsTokens);
+        }
 
         let readCost = readTokens * pricing.cacheRead / 1000000;
-        let writeCost = Math.max(0, inputTokens - readTokens) * pricing.cacheWrite / 1000000;
-        let outputCost = outputTokens * pricing.output / 1000000;
+        let writeCost = writeTokens * pricing.cacheWrite / 1000000;
+        let outputCost = pureOutputTokens * pricing.output / 1000000;
         let thoughtsCost = thoughtsTokens * pricing.output / 1000000;
 
         const totalUsd = readCost + writeCost + outputCost + thoughtsCost;
         return {
             usd: totalUsd,
             krw: totalUsd * EXCHANGE_RATE,
-            str: `입력 ${inputTokens} / 출력 ${Math.max(0, outputTokens - thoughtsTokens)} / 추론 ${thoughtsTokens} (약 ₩${(totalUsd * EXCHANGE_RATE).toFixed(2)})`
+            str: `캐시읽기 ${readTokens} / 일반입력 ${writeTokens} / 일반출력 ${pureOutputTokens} / 추론 ${thoughtsTokens} (약 ₩${(totalUsd * EXCHANGE_RATE).toFixed(2)})`
         };
     }
 
@@ -70,17 +80,122 @@
     function addCumulativeCost(model, usd) { const costs = getCumulativeCosts(); costs[model] = (costs[model] || 0) + usd; localStorage.setItem("crackTransCosts", JSON.stringify(costs)); }
     function resetCumulativeCosts() { localStorage.setItem("crackTransCosts", JSON.stringify({})); }
 
-    // ==========================================
+ // ==========================================
     // 2. 설정 및 캐시 관리
     // ==========================================
     class ConfigManager {
         static getConfig() {
+            const promptEnFull = `[역할 및 목적]
+당신은 최상급 웹소설 작가이자 인공지능 캐릭터 롤플레잉 전담 '초월 번역가'입니다. 유저가 입력한 한국어 텍스트를 단순 기계 번역하는 것을 넘어, 캐릭터의 영혼과 감정, 문체, 그리고 상황적 맥락이 생생하게 호흡하는 완벽한 영문 웹소설 문체로 재창조하는 것이 당신의 유일한 목표입니다.
+
+[핵심 번역 원칙: 초월 번역]
+1. 완벽한 뉘앙스 현지화: 한국어 특유의 은어, 감정선, 말버릇을 자연스럽게 의역하십시오.
+2. 원문의 형태(줄바꿈, 별표*, 따옴표" ", 특수문자 등) 및 구조를 완벽하게 원형대로 유지하십시오.
+3. 오직 '초월 번역이 적용된 최종 결과물'만 제공하십시오
+- 번역 외의 부연 설명, 인사말, 확인 문구는 절대 출력하지 마십시오.
+
+[출력 형식 가이드]
+- 지문/서술 형식: *English description or narration*
+- 대사 형식: "English dialogue"
+
+(예시)
+입력: 아, 귀찮게 진짜... *머리를 쓸어넘기며 한숨을 쉰다.* 밥은 먹었냐?
+출력: "Ah, this is so annoying..." *Sighing, brushing the hair back.* "Have you eaten yet?"`;
+
+            const promptEnDialogue = `[역할 및 목적]
+당신은 최상급 웹소설 작가이자 인공지능 캐릭터 롤플레잉 전담 '초월 번역가'입니다. 유저가 입력한 한국어 텍스트를 단순 기계 번역하는 것을 넘어, 캐릭터의 영혼과 감정, 문체, 그리고 상황적 맥락이 생생하게 호흡하는 완벽한 영문 웹소설 문체로 재창조하는 것이 당신의 유일한 목표입니다.
+
+[핵심 번역 원칙: 초월 번역]
+1. 완벽한 뉘앙스 현지화: 한국어 특유의 은어, 감정선, 말버릇을 자연스럽게 의역하십시오.
+2. 지문과 대사의 극적 분리 및 형식 엄수:
+- 지문은 반드시 양끝을 별표(*)로 감싸십시오. 지문 안에는 한국어를 남기지 마십시오.
+- 대사(직접 하는 말)는 따옴표(" ") 안에 영문 번역을 넣고, 바로 뒤에 괄호()를 열어 한국어 원문을 병기하십시오.
+- 번역 외의 부연 설명, 인사말, 확인 문구는 절대 출력하지 마십시오.
+3. 원문의 형태(줄바꿈, 별표*, 따옴표" ", 특수문자 등) 및 구조를 완벽하게 원형대로 유지하십시오.
+4. 오직 '초월 번역이 적용된 최종 결과물'만 제공하십시오
+
+[출력 형식 가이드]
+- 지문/서술 형식: *English description or narration*
+- 대사 형식: "English dialogue" (한국어 원문)
+
+(예시)
+입력: 아, 귀찮게 진짜... *머리를 쓸어넘기며 한숨을 쉰다.* 밥은 먹었냐?
+출력: "Ah, this is so annoying..." (아, 귀찮게 진짜...) *Sighing, brushing the hair back.* "Have you eaten yet?" (밥은 먹었냐?)
+
+[형식 오류 검토 체크리스트]
+1. 대사가 ["English" (Korean)] 형식을 정확히 따르고 있는가?
+2. ()인 괄호 안 한국어 원문 옆에 불필요한 " 따옴표가 들어가 있지는 않은가? -> 있다면 제거.
+3. 지문 묘사(* * 안)에 한국어가 남아있지는 않은가? -> 지문은 100% 영어로만 출력.
+4. 부자연스러운 기계식 직역인가? -> 캐릭터의 성격과 상황에 맞는 자연스러운 영문 의역으로 정정.`;
+
+            const promptJpFull = `[역할 및 목적]
+당신은 최상급 웹소설 작가이자 인공지능 캐릭터 롤플레잉 전담 '초월 번역가'입니다. 유저가 입력한 한국어 텍스트를 단순 기계 번역하는 것을 넘어, 캐릭터의 영혼과 감정, 문체, 그리고 상황적 맥락이 생생하게 호흡하는 완벽한 일본어 라이트노벨/웹소설 문체로 재창조하는 것이 당신의 유일한 목표입니다.
+
+[핵심 번역 원칙: 초월 번역]
+1. 완벽한 뉘앙스 현지화: 한국어 특유의 은어, 감정선, 말버릇을 자연스럽게 의역하십시오. 유저가 설정을 제시했다면, 설정에 맞는 적절한 어투(반말, 존댓말 등)를 사용하십시오.
+2. 원문의 형태(줄바꿈, 별표*, 특수문자 등) 및 구조를 완벽하게 원형대로 유지하십시오. 단, 대사는 "가 아닌 꺽쇠(「 」) 를 사용하십시오.
+3. 오직 '초월 번역이 적용된 최종 결과물'만 제공하십시오.
+- 번역 외의 부연 설명, 인사말, 확인 문구는 절대 출력하지 마십시오.
+
+[출력 형식 가이드]
+- 지문/서술 형식: *日本語の描写やナレーション*
+- 대사 형식: 「日本語のセリフ」
+
+(예시)
+입력:
+아, 귀찮게 진짜... *머리를 쓸어넘기며 한숨을 쉰다.* 밥은 먹었냐?
+출력: 「あー、マジでめんどくせぇ…」 *髪をかき上げながらため息をつく。* 「飯は食ったか？」`;
+
+            const promptJpDialogue = `[역할 및 목적]
+당신은 최상급 웹소설 작가이자 인공지능 캐릭터 롤플레잉 전담 '초월 번역가'입니다. 유저가 입력한 한국어 텍스트를 단순 기계 번역하는 것을 넘어, 캐릭터의 영혼과 감정, 문체, 그리고 상황적 맥락이 생생하게 호흡하는 완벽한 일본어 라이트노벨/웹소설 문체로 재창조하는 것이 당신의 유일한 목표입니다.
+
+[핵심 번역 원칙: 초월 번역]
+1. 완벽한 뉘앙스 현지화: 한국어 특유의 은어, 감정선, 말버릇을 자연스럽게 의역하십시오. 유저가 설정을 제시했다면, 설정에 맞는 적절한 어투(반말, 존댓말 등)를 사용하십시오.
+2. 지문과 대사의 극적 분리 및 형식 엄수:
+- 지문은 반드시 양끝을 별표(*)로 감싸십시오. 지문 안에는 한국어를 남기지 마십시오.
+- 대사(직접 하는 말)는 꺾쇠(「 」) 안에 일본어 번역을 넣고, 줄바꿈을 한 후 괄호()를 열어 한국어 원문을 병기하십시오.
+- 번역 외의 부연 설명, 인사말, 확인 문구는 절대 출력하지 마십시오.
+3. 원문의 형태(줄바꿈, 별표*, 따옴표, 꺾쇠, 특수문자 등) 및 구조를 완벽하게 원형대로 유지하십시오.
+4. 오직 '초월 번역이 적용된 최종 결과물'만 제공하십시오.
+
+[출력 형식 가이드]
+- 지문/서술 형식:
+*日本語の描写やナレーション*
+- 대사 형식:
+「日本語のセリフ」
+(한국어 원문)
+
+(예시)
+입력:
+아, 귀찮게 진짜...
+*머리를 쓸어넘기며 한숨을 쉰다.*
+밥은 먹었냐?
+출력:
+「あー、マジでめんどくせぇ…」
+(아, 귀찮게 진짜...)
+
+*髪をかき上げながらため息をつく。*
+
+「飯は食ったか？」
+(밥은 먹었냐?)
+
+[형식 오류 검토 체크리스트]
+1. 대사가 [「日本語」 (Korean)] 형식을 정확히 따르고 있는가?
+2. ()인 괄호 안 한국어 원문 옆에 불필요한 「 또는 」 꺾쇠가 들어가 있지는 않은가? -> 있다면 제거.
+3. 지문 묘사(* * 안)에 한국어가 남아있지는 않은가? -> 지문은 100% 일본어로만 출력.
+4. 부자연스러운 기계식 직역인가? -> 캐릭터의 성격과 상황에 맞는 자연스러운 일본어 의역으로 정정.`;
+
             const def = {
                 provider: "google",
-                model: "gemini-3-flash-preview", // ✨ 기본 모델 변경
+                model: "gemini-3-flash-preview",
                 geminiKey: "", fbConfig: "", deepseekKey: "",
 
-                prompts: [{ id: "default", name: "기본 번역", content: "내가 입력한 한국어를 캐릭터의 성격과 상황에 맞춰 자연스럽게 번역해 줘. 번역된 결과만 출력해." }],
+                prompts: [
+                    { id: "default", name: "영어 (전문)", content: promptEnFull },
+                    { id: "dialogue_en", name: "영어 (대사병기)", content: promptEnDialogue },
+                    { id: "full_jp", name: "일본어 (전문)", content: promptJpFull },
+                    { id: "dialogue_jp", name: "일본어 (대사병기)", content: promptJpDialogue }
+                ],
                 selectedPromptId: "default",
 
                 temperature: 0.7,
@@ -88,13 +203,16 @@
                 geminiLevel3_1: "low",
                 geminiLevel3_x: "low",
 
-                dsThinking: true, dsEffort: "high", // ✨ 딥시크 체크박스용 속성 변경
-                includeContext: false, contextTurns: 2, recentUsageStr: ""
+                dsThinking: true, dsEffort: "high",
+                includeContext: false, contextTurns: 2,
+                includePersona: false,
+                recentUsageStr: ""
             };
-            try { return { ...def, ...JSON.parse(localStorage.getItem("crackTransConfigV2_4") || "{}") }; }
+
+            try { return { ...def, ...JSON.parse(localStorage.getItem("crackTransConfig08") || "{}") }; }
             catch (e) { return def; }
         }
-        static setConfig(c) { localStorage.setItem("crackTransConfigV2_4", JSON.stringify(c)); }
+        static setConfig(c) { localStorage.setItem("crackTransConfig08", JSON.stringify(c)); }
     }
 
     // ==========================================
@@ -106,11 +224,7 @@
     }
     function setEditorText(text) {
         const el = document.querySelector('.__chat_input_textarea');
-        if (el) {
-            el.focus();
-            document.execCommand('selectAll', false, null);
-            document.execCommand('insertText', false, text);
-        }
+        if (el) { el.focus(); document.execCommand('selectAll', false, null); document.execCommand('insertText', false, text); }
     }
     function getCookie(name) {
         const value = `; ${document.cookie}`; const parts = value.split(`; ${name}=`);
@@ -120,18 +234,87 @@
         const m = window.location.pathname.match(/\/stories\/([a-f0-9]+)\/episodes\/([a-f0-9]+)/);
         return m ? m[2] : null;
     }
-    async function fetchContext(turns) {
-        const roomId = getChatroomId(); if (!roomId) return "";
+
+    async function wrtnApiRequest(url) {
         const token = getCookie('access_token'); const wrtnId = getCookie('__w_id');
-        const headers = { 'Authorization': `Bearer ${token}`, 'platform': 'web', 'x-wrtn-id': wrtnId || '' };
         try {
-            const res = await fetch(`${BASE_DOMAIN}/crack-gen/v3/chats/${roomId}/messages?limit=20`, { headers });
-            if (!res.ok) return ""; const json = await res.json();
-            const msgs = (json.data ?? json).messages || [];
-            const recent = msgs.reverse().slice(-(turns * 2));
-            if (recent.length === 0) return "";
-            return "[이전 대화 문맥 (참고용)]\n" + recent.map(m => `${m.role === 'assistant' ? 'AI' : 'User'}: ${m.content}`).join("\n\n");
-        } catch(e) { return ""; }
+            const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}`, 'platform': 'web', 'x-wrtn-id': wrtnId || '' } });
+            if (!res.ok) return null; const json = await res.json(); return json.data !== undefined ? json.data : json;
+        } catch (e) { return null; }
+    }
+
+
+    async function fetchContextAndPersona(turns, includeContext, includePersona) {
+        const roomId = getChatroomId();
+        if (!roomId) return { history: [], persona: "" };
+
+        let history = []; let persona = "";
+
+        // 1. 과거 대화 가져오기
+        if (includeContext && turns > 0) {
+            const mRes = await wrtnApiRequest(`${BASE_DOMAIN}/crack-gen/v3/chats/${roomId}/messages?limit=20`);
+            if (mRes && mRes.messages) {
+                history = mRes.messages.reverse().slice(-(turns * 2)).map(m => ({ role: m.role, content: m.content }));
+            }
+        }
+
+        // 2. 페르소나 가져오기
+        if (includePersona) {
+            const cRes = await wrtnApiRequest(`${BASE_DOMAIN}/crack-gen/v3/chats/${roomId}`);
+            const pInfo = await wrtnApiRequest(`${BASE_DOMAIN}/crack-api/profiles`);
+
+            if (cRes && pInfo && pInfo._id) {
+                const pListRes = await wrtnApiRequest(`${BASE_DOMAIN}/crack-api/profiles/${pInfo._id}/chat-profiles`);
+                const list = pListRes?.chatProfiles || [];
+                const activeId = cRes.chatProfile?._id;
+
+                const p = list.find(i => i._id === activeId) || list.find(i => i.isRepresentative) || list[0];
+                if (p) persona = `## ${p.name}(user) 프로필\n${p.information || ""}`;
+            }
+        }
+        return { history, persona };
+    }
+
+
+    function formatMessages(history, textToTranslate, provider) {
+        let result = [];
+        let aiRole = provider === 'deepseek' ? 'assistant' : 'model';
+
+        let mapped = history.map(m => ({ role: m.role === 'assistant' ? aiRole : 'user', content: m.content }));
+
+        for (const m of mapped) {
+            if (result.length > 0 && result[result.length-1].role === m.role) {
+                result[result.length-1].content += `\n\n${m.content}`;
+            } else {
+                result.push({ role: m.role, content: m.content });
+            }
+        }
+
+        if (provider !== 'deepseek' && result.length > 0 && result[0].role !== 'user') {
+            result.unshift({ role: 'user', content: '(이전 대화 생략)' });
+        }
+
+        if (result.length > 0) {
+            result[0].content = `[맥락 이해용 최근 채팅로그 시작]\n\n${result[0].content}`;
+        }
+
+        // 🌟 history 배열에 데이터가 있는지(문맥이 포함되었는지) 확인하여 텍스트 분기
+        let targetText = "";
+        if (history.length > 0) {
+            // 과거 문맥이 있을 때
+            targetText = `[채팅로그 끝]\n\n[번역 지시]\n 롤플레잉 금지. 과거의 대화 문맥과 system prompt에 맞추어 다음 문장을 번역:\n${textToTranslate}`;
+        } else {
+            // 과거 문맥이 없을 때 (설정만 참고하라고 지시)
+            targetText = `[번역 지시]\n system prompt에 맞추어 다음 문장을 번역:\n${textToTranslate}`;
+        }
+
+        if (result.length > 0 && result[result.length-1].role === 'user') {
+            result[result.length-1].content += `\n\n${targetText}`;
+        } else {
+            result.push({ role: 'user', content: targetText });
+        }
+
+        return result;
     }
 
     const FIREBASE_APP_NAME = 'mimic-fb-input';
@@ -139,28 +322,25 @@
         const conf = ConfigManager.getConfig();
         const pv = conf.provider;
         const md = conf.model;
-        const targetPrompt = conf.prompts.find(p => p.id === conf.selectedPromptId)?.content || "자연스럽게 번역해 줘.";
 
-        let contextStr = "";
-        if (conf.includeContext && conf.contextTurns > 0) contextStr = await fetchContext(conf.contextTurns);
-        const fullPrompt = `${targetPrompt}\n\n${contextStr ? contextStr + "\n\n---\n" : ""}[번역할 텍스트]\n${textToTranslate}`;
+        // 컨텍스트 및 페르소나 로드
+        const fetched = await fetchContextAndPersona(conf.contextTurns, conf.includeContext, conf.includePersona);
+
+        let systemPrompt = conf.prompts.find(p => p.id === conf.selectedPromptId)?.content || "자연스럽게 번역해 줘.";
+        if (conf.includePersona && fetched.persona) {
+            systemPrompt += `\n\n[참고: user 프로필]\n${fetched.persona}`;
+        }
+
+        const finalMessages = formatMessages(fetched.history, textToTranslate, pv);
 
         return new Promise(async (resolve, reject) => {
             if (pv === 'deepseek') {
                 if (!conf.deepseekKey) return reject(new Error("DeepSeek API 키가 없습니다."));
-                let payload = { model: md, messages: [{ role: "user", content: fullPrompt }], stream: false };
 
-                // ✨ 딥시크 체크박스 분기 처리
-                if (!conf.dsThinking) {
-                    payload.temperature = parseFloat(conf.temperature);
-                    payload.thinking = { type: "disabled" };
-                } else {
-                    payload.thinking = { type: "enabled" };
-                    payload.reasoning_effort = conf.dsEffort;
-                    // 온도는 보내지 않음
-                }
+                let payload = { model: md, messages: [{ role: "system", content: systemPrompt }, ...finalMessages], stream: false };
+                if (!conf.dsThinking) { payload.temperature = parseFloat(conf.temperature); payload.thinking = { type: "disabled" }; }
+                else { payload.thinking = { type: "enabled" }; payload.reasoning_effort = conf.dsEffort; }
 
-                // 🔎 콘솔에 페이로드 출력 (F12에서 확인 가능)
                 console.log("🚀 [DeepSeek Payload]:", JSON.stringify(payload, null, 2));
 
                 GM_xmlhttpRequest({
@@ -169,8 +349,7 @@
                     data: JSON.stringify(payload),
                     onload: (res) => {
                         if (res.status !== 200) return reject(new Error(`DeepSeek 오류: ${res.status}`));
-                        const data = JSON.parse(res.responseText);
-                        resolve({ text: data.choices[0].message.content, usage: data.usage });
+                        const data = JSON.parse(res.responseText); resolve({ text: data.choices[0].message.content, usage: data.usage });
                     }, onerror: () => reject(new Error("네트워크 오류"))
                 });
             } else if (pv === 'firebase') {
@@ -179,7 +358,6 @@
                     let fbVersion = '12.12.0';
                     const versionMatch = conf.fbConfig.match(/firebasejs\/([0-9.]+)\/firebase-app\.js/);
                     if (versionMatch?.[1]) fbVersion = versionMatch[1];
-
                     let configObj;
                     const configMatch = conf.fbConfig.match(/(?:const|let|var)\s+firebaseConfig\s*=\s*({[\s\S]*?});/);
                     if (configMatch?.[1]) configObj = new Function(`return (${configMatch[1]});`)();
@@ -195,20 +373,21 @@
                     const ai = getAI(app, { backend: new VertexAIBackend('global') });
 
                     const genConfig = { temperature: parseFloat(conf.temperature) };
-
                     if (md.includes('gemini-2.5')) { genConfig.thinkingConfig = { thinkingBudget: Math.max(128, parseInt(conf.geminiBudget) || 128) }; }
-                    else if (md.includes('gemini-3.1-pro')) { genConfig.thinkingConfig = { thinkingLevel: conf.geminiLevel3_1 }; }
-                    else if (md.includes('gemini-3')) { genConfig.thinkingConfig = { thinkingLevel: conf.geminiLevel3_x }; }
-
-                    console.log("🚀 [Firebase Gemini Payload Config]:", JSON.stringify(genConfig, null, 2));
+                    else if (md.includes('gemini-3.1-pro')) { genConfig.thinkingConfig = { thinkingLevel: conf.geminiLevel3_1 }; delete genConfig.temperature; }
+                    else if (md.includes('gemini-3')) { genConfig.thinkingConfig = { thinkingLevel: conf.geminiLevel3_x }; delete genConfig.temperature; }
 
                     const generativeModel = getGenerativeModel(ai, {
                         model: md,
                         safetySettings: [{ category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.OFF }, { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.OFF }, { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.OFF }, { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.OFF }],
+                        systemInstruction: systemPrompt ? { parts: [{ text: systemPrompt }] } : undefined,
                         generationConfig: genConfig
                     });
 
-                    const result = await generativeModel.generateContent(fullPrompt);
+                    const formattedContents = finalMessages.map(m => ({ role: m.role, parts: [{ text: m.content }] }));
+                    console.log("🚀 [Firebase Gemini Payload]:", JSON.stringify({systemInstruction: systemPrompt, contents: formattedContents, generationConfig: genConfig}, null, 2));
+
+                    const result = await generativeModel.generateContent({ contents: formattedContents });
                     resolve({ text: result.response.text(), usage: result.response.usageMetadata });
                 } catch (e) { reject(new Error(`Firebase 실패: ${e.message}`)); }
             } else {
@@ -216,14 +395,24 @@
                 if (!conf.geminiKey) return reject(new Error("Gemini API 키가 없습니다."));
 
                 const genConfig = { temperature: parseFloat(conf.temperature) };
-
                 if (md.includes('gemini-2.5')) { genConfig.thinkingConfig = { thinkingBudget: Math.max(128, parseInt(conf.geminiBudget) || 128) }; }
-                else if (md.includes('gemini-3.1-pro')) { genConfig.thinkingConfig = { thinkingLevel: conf.geminiLevel3_1 }; }
-                else if (md.includes('gemini-3')) { genConfig.thinkingConfig = { thinkingLevel: conf.geminiLevel3_x }; }
+                else if (md.includes('gemini-3.1-pro')) { genConfig.thinkingConfig = { thinkingLevel: conf.geminiLevel3_1 }; delete genConfig.temperature; }
+                else if (md.includes('gemini-3')) { genConfig.thinkingConfig = { thinkingLevel: conf.geminiLevel3_x }; delete genConfig.temperature; }
 
-                const requestBody = { contents:[{ parts:[{ text: fullPrompt }] }], generationConfig: genConfig };
+                const formattedContents = finalMessages.map(m => ({ role: m.role, parts: [{ text: m.content }] }));
 
-                // 🔎 콘솔에 페이로드 출력 (F12에서 확인 가능)
+                const requestBody = {
+                    systemInstruction: systemPrompt ? { parts: [{ text: systemPrompt }] } : undefined,
+                    contents: formattedContents,
+                    generationConfig: genConfig,
+                    safetySettings: [
+                        { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
+                        { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
+                        { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
+                        { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
+                    ]
+                };
+
                 console.log("🚀 [Google Gemini Payload]:", JSON.stringify(requestBody, null, 2));
 
                 GM_xmlhttpRequest({
@@ -232,8 +421,7 @@
                     data: JSON.stringify(requestBody),
                     onload: (res) => {
                         if (res.status !== 200) return reject(new Error(`Gemini 오류: ${res.status}`));
-                        const data = JSON.parse(res.responseText);
-                        resolve({ text: data.candidates[0].content.parts[0].text, usage: data.usageMetadata });
+                        const data = JSON.parse(res.responseText); resolve({ text: data.candidates[0].content.parts[0].text, usage: data.usageMetadata });
                     }, onerror: () => reject(new Error("네트워크 오류"))
                 });
             }
@@ -281,22 +469,28 @@
                             </div>
                         </div>
 
-                        <!-- 온도 설정 슬라이더 -->
                         <div style="margin-bottom:15px;">
                             <label style="display:block;font-size:12px;font-weight:bold;color:#4b5563;margin-bottom:6px;">Temperature: <span id="t-temp-val">${config.temperature}</span></label>
                             <input type="range" id="t-temp" min="0" max="2" step="0.1" value="${config.temperature}" style="width:100%;cursor:pointer;">
                         </div>
 
-                        <!-- 다이나믹 추론 설정 박스 -->
                         <div id="t-think-box" style="background:#f3f4f6;padding:15px;border-radius:10px;border:1px solid #e5e7eb;margin-bottom:15px;"></div>
+
+                        <!-- ✨ 대화 프로필(페르소나) 포함 토글을 밖으로 뺐습니다! -->
+                        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+                            <label style="font-size:13px;font-weight:bold;color:#111827;">이 방의 대화 프로필(페르소나) 반영</label>
+                            <input type="checkbox" id="t-ctx-persona" ${config.includePersona?'checked':''} style="width:16px;height:16px;cursor:pointer;">
+                        </div>
 
                         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
                             <label style="font-size:13px;font-weight:bold;color:#111827;">문맥(최근 대화) 같이 보내기</label>
                             <input type="checkbox" id="t-ctx-toggle" ${config.includeContext?'checked':''} style="width:16px;height:16px;cursor:pointer;">
                         </div>
-                        <div id="t-ctx-box" style="display:${config.includeContext?'flex':'none'};align-items:center;justify-content:space-between;background:#f9fafb;padding:10px 15px;border-radius:8px;border:1px dashed #d1d5db;margin-bottom:20px;">
-                            <span style="font-size:12px;color:#4b5563;">포함할 과거 턴 수 (1~10)</span>
-                            <input type="text" id="t-ctx-turns" value="${config.contextTurns}" style="width:60px;padding:6px;border-radius:6px;border:1px solid #d1d5db;text-align:center;font-size:13px;">
+                        <div id="t-ctx-box" style="display:${config.includeContext?'flex':'none'};flex-direction:column;gap:10px;background:#f9fafb;padding:15px;border-radius:8px;border:1px dashed #d1d5db;margin-bottom:20px;">
+                            <div style="display:flex;align-items:center;justify-content:space-between;">
+                                <span style="font-size:12px;color:#4b5563;font-weight:bold;">포함할 과거 턴 수 (1~10)</span>
+                                <input type="text" id="t-ctx-turns" value="${config.contextTurns}" style="width:60px;padding:6px;border-radius:6px;border:1px solid #d1d5db;text-align:center;font-size:13px;">
+                            </div>
                         </div>
 
                         <h3 style="font-size:13px;font-weight:bold;color:#111827;margin:0 0 8px;">💰 최근 및 누적 요금</h3>
@@ -340,7 +534,6 @@
 
                 </div>
 
-                <!-- 하단 버튼 -->
                 <div style="margin-top:20px;display:flex;justify-content:flex-end;">
                     <button id="t-save-btn" style="padding:12px 24px;background:#4f46e5;color:#fff;border-radius:8px;border:none;cursor:pointer;font-weight:bold;font-size:14px;transition:0.2s;">설정 저장</button>
                 </div>
@@ -356,7 +549,6 @@
 
         tempSlider.oninput = () => document.getElementById('t-temp-val').innerText = tempSlider.value;
 
-        // 알약 탭 디자인 동작
         document.querySelectorAll('.t-tab-btn').forEach(btn => {
             btn.onclick = () => {
                 document.querySelectorAll('.t-tab-btn').forEach(b => { b.style.background='transparent'; b.style.color='#6b7280'; b.style.border='none'; b.style.boxShadow='none'; b.style.fontWeight='500'; });
@@ -366,7 +558,6 @@
             };
         });
 
-        // 요금표
         const renderCosts = () => {
             const listDiv = document.getElementById('t-cost-list');
             const costs = getCumulativeCosts();
@@ -376,7 +567,6 @@
         renderCosts();
         document.getElementById('t-reset-cost').onclick = () => { if(confirm("초기화할까요?")){ resetCumulativeCosts(); renderCosts(); }};
 
-        // 다이나믹 UI 업데이트
         function updateDynamicUI() {
             const pv = pvSel.value;
             const currentSelected = mdSel.value || config.model;
@@ -389,15 +579,10 @@
             }
             mdSel.innerHTML = options;
 
-            if (Array.from(mdSel.options).find(o => o.value === currentSelected)) {
-                mdSel.value = currentSelected;
-            } else {
-                mdSel.selectedIndex = 0;
-            }
+            if (Array.from(mdSel.options).find(o => o.value === currentSelected)) { mdSel.value = currentSelected; }
+            else { mdSel.selectedIndex = 0; }
 
             const md = mdSel.value;
-
-            // ✨ 딥시크 체크박스 상태 읽기 (없으면 config 값 사용)
             const currentDsThinking = document.getElementById('t-ds-thinking') ? document.getElementById('t-ds-thinking').checked : config.dsThinking;
 
             let html = "";
@@ -408,46 +593,28 @@
             } else if (md.includes('gemini-3')) {
                 html = `<label style="display:block;font-size:12px;font-weight:bold;color:#4b5563;margin-bottom:6px;">추론 정도</label><select id="t-gem-3x" style="width:100%;padding:8px;border-radius:6px;border:1px solid #d1d5db;"><option value="minimal" ${config.geminiLevel3_x==='minimal'?'selected':''}>Minimal</option><option value="low" ${config.geminiLevel3_x==='low'?'selected':''}>Low</option><option value="medium" ${config.geminiLevel3_x==='medium'?'selected':''}>Medium</option><option value="high" ${config.geminiLevel3_x==='high'?'selected':''}>High</option></select>`;
             } else if (md.includes('deepseek')) {
-                // ✨ 딥시크 체크박스 UI로 교체
                 html = `
                     <label style="font-size:13px;cursor:pointer;display:flex;align-items:center;gap:6px;margin-bottom:10px;">
-                        <input type="checkbox" id="t-ds-thinking" ${currentDsThinking ? 'checked' : ''} style="width:16px;height:16px;">
-                        추론(Thinking) 사용
+                        <input type="checkbox" id="t-ds-thinking" ${currentDsThinking ? 'checked' : ''} style="width:16px;height:16px;"> 추론(Thinking) 사용
                     </label>
                     <div style="font-size:11px;color:#6b7280;margin-bottom:10px;margin-left:22px;">* 딥시크 추론 모드 시 온도는 무시됩니다.</div>
                     <div id="t-ds-effort-box" style="display:${currentDsThinking ? 'block' : 'none'};margin-left:22px;">
                         <label style="display:block;font-size:12px;font-weight:bold;color:#4b5563;margin-bottom:6px;">Reasoning Effort</label>
-                        <select id="t-ds-effort" style="width:100%;padding:8px;border-radius:6px;border:1px solid #d1d5db;">
-                            <option value="high" ${config.dsEffort==='high'?'selected':''}>High</option>
-                            <option value="max" ${config.dsEffort==='max'?'selected':''}>Max</option>
-                        </select>
+                        <select id="t-ds-effort" style="width:100%;padding:8px;border-radius:6px;border:1px solid #d1d5db;"><option value="high" ${config.dsEffort==='high'?'selected':''}>High</option><option value="max" ${config.dsEffort==='max'?'selected':''}>Max</option></select>
                     </div>
                 `;
             }
             thinkBox.innerHTML = html;
-
-            // 체크박스 클릭 시 노력도 박스 숨김/표시
-            if (md.includes('deepseek')) {
-                document.getElementById('t-ds-thinking').onchange = (e) => {
-                    document.getElementById('t-ds-effort-box').style.display = e.target.checked ? 'block' : 'none';
-                };
-            }
+            if (md.includes('deepseek')) { document.getElementById('t-ds-thinking').onchange = (e) => { document.getElementById('t-ds-effort-box').style.display = e.target.checked ? 'block' : 'none'; }; }
         }
 
-        pvSel.addEventListener('change', updateDynamicUI);
-        mdSel.addEventListener('change', updateDynamicUI);
-        updateDynamicUI();
-
+        pvSel.addEventListener('change', updateDynamicUI); mdSel.addEventListener('change', updateDynamicUI); updateDynamicUI();
         document.getElementById('t-ctx-toggle').onchange = (e) => { document.getElementById('t-ctx-box').style.display = e.target.checked ? 'flex' : 'none'; };
 
-        // 프리셋 관리
         let tempPrompts = JSON.parse(JSON.stringify(config.prompts)); let curId = config.selectedPromptId;
         const pSel = document.getElementById('t-prompt-sel'), pName = document.getElementById('t-prompt-name'), pCon = document.getElementById('t-prompt-content');
 
-        const renderPrompts = () => {
-            pSel.innerHTML = tempPrompts.map(p => `<option value="${p.id}" ${p.id===curId?'selected':''}>${p.name}</option>`).join('');
-            const cur = tempPrompts.find(x=>x.id===curId); if(cur){ pName.value=cur.name; pCon.value=cur.content; }
-        };
+        const renderPrompts = () => { pSel.innerHTML = tempPrompts.map(p => `<option value="${p.id}" ${p.id===curId?'selected':''}>${p.name}</option>`).join(''); const cur = tempPrompts.find(x=>x.id===curId); if(cur){ pName.value=cur.name; pCon.value=cur.content; } };
         renderPrompts();
         pSel.onchange = (e) => { const prev = tempPrompts.find(x=>x.id===curId); if(prev){prev.name=pName.value; prev.content=pCon.value;} curId = e.target.value; renderPrompts(); };
         pName.oninput = () => { const cur = tempPrompts.find(x=>x.id===curId); if(cur) {cur.name=pName.value; pSel.options[pSel.selectedIndex].text = pName.value;} };
@@ -456,32 +623,24 @@
         document.getElementById('t-add-prompt').onclick = () => { const prev = tempPrompts.find(x=>x.id===curId); if(prev){prev.name=pName.value; prev.content=pCon.value;} const nId='p_'+Date.now(); tempPrompts.push({id:nId, name:'새 프리셋', content:''}); curId=nId; renderPrompts(); };
         document.getElementById('t-del-prompt').onclick = () => { if(tempPrompts.length<=1){alert('최소 1개는 필요합니다.');return;} tempPrompts=tempPrompts.filter(x=>x.id!==curId); curId=tempPrompts[0].id; renderPrompts(); };
 
-        // 저장 로직
-        const saveAll = () => {
+        document.getElementById('t-save-btn').onclick = () => {
             const cur = tempPrompts.find(x=>x.id===curId); if(cur){ cur.name=pName.value; cur.content=pCon.value; }
-            const pv = pvSel.value;
-            const md = mdSel.value;
+            const pv = pvSel.value; const md = mdSel.value;
 
-            let t = parseInt(document.getElementById('t-ctx-turns').value);
-            if (isNaN(t)) t = 2;
-            t = Math.max(1, Math.min(10, t));
+            let t = parseInt(document.getElementById('t-ctx-turns').value); if (isNaN(t)) t = 3; t = Math.max(1, Math.min(10, t));
 
-            const newConf = { ...config, provider: pv, model: md,
-                temperature: parseFloat(tempSlider.value) || 0.7,
+            const newConf = { ...config, provider: pv, model: md, temperature: parseFloat(tempSlider.value) || 0.7,
                 geminiKey: document.getElementById('t-gemini-key').value, fbConfig: document.getElementById('t-fb-config').value, deepseekKey: document.getElementById('t-ds-key').value,
-                prompts: tempPrompts, selectedPromptId: curId, includeContext: document.getElementById('t-ctx-toggle').checked, contextTurns: t };
+                prompts: tempPrompts, selectedPromptId: curId, includeContext: document.getElementById('t-ctx-toggle').checked, contextTurns: t,
+                includePersona: document.getElementById('t-ctx-persona').checked };
 
-            if (md === 'gemini-2.5-pro') newConf.geminiBudget = parseInt(document.getElementById('t-gem-budget').value) || 128;
+            if (md === 'gemini-2.5-pro') newConf.geminiBudget = Math.max(128, parseInt(document.getElementById('t-gem-budget').value) || 128);
             else if (md === 'gemini-3.1-pro-preview') newConf.geminiLevel3_1 = document.getElementById('t-gem-31').value;
             else if (md.includes('gemini-3')) newConf.geminiLevel3_x = document.getElementById('t-gem-3x').value;
-            else if (md.includes('deepseek')) {
-                newConf.dsThinking = document.getElementById('t-ds-thinking').checked;
-                newConf.dsEffort = document.getElementById('t-ds-effort') ? document.getElementById('t-ds-effort').value : 'high';
-            }
+            else if (md.includes('deepseek')) { newConf.dsThinking = document.getElementById('t-ds-thinking').checked; newConf.dsEffort = document.getElementById('t-ds-effort') ? document.getElementById('t-ds-effort').value : 'high'; }
 
             ConfigManager.setConfig(newConf); modal.remove();
         };
-        document.getElementById('t-save-btn').onclick = saveAll;
         document.querySelectorAll('.t-close-btn').forEach(b => b.onclick = () => modal.remove());
     }
 
@@ -492,10 +651,7 @@
         const targetContainer = document.querySelector('.pb-3.pl-3.pr-2\\.5.pt-1\\.5 .flex.items-center.space-x-2');
         if (!targetContainer || document.getElementById('crack-magic-wand-container')) return;
 
-        const container = document.createElement('div');
-        container.id = 'crack-magic-wand-container';
-        container.style.cssText = 'display:flex; align-items:center; gap:8px; margin-left:8px; border-left: 1px solid var(--border); ';
-
+        const container = document.createElement('div'); container.id = 'crack-magic-wand-container'; container.style.cssText = 'display:flex; align-items:center; gap:8px; margin-left:8px; border-left: 1px solid var(--border); padding-left: 8px;';
         const btnStyle = 'width:28px; height:28px; border-radius:50%; border:1px solid var(--border); background:var(--card); cursor:pointer; display:flex; justify-content:center; align-items:center; color:#4582ff; font-size:14px; transition:0.2s;';
 
         container.innerHTML = `
@@ -508,14 +664,11 @@
         `;
         targetContainer.appendChild(container);
 
-        const tBtn = document.getElementById('cm-translate-btn');
-        const ctrlGrp = document.getElementById('cm-ctrl-group');
-        const rBtn = document.getElementById('cm-reroll-btn');
+        const tBtn = document.getElementById('cm-translate-btn'), ctrlGrp = document.getElementById('cm-ctrl-group'), rBtn = document.getElementById('cm-reroll-btn');
         let originalText = null;
 
         const doTranslate = async (textToUse, isReroll = false) => {
             if (!textToUse.trim()) return;
-
             tBtn.innerHTML = '<span style="font-size:12px;">⏳</span>'; tBtn.style.cursor = 'default'; tBtn.disabled = true;
             if (isReroll) { rBtn.textContent = '⏳ 리롤 중...'; rBtn.disabled = true; }
 
@@ -525,10 +678,7 @@
                 setEditorText(res.text);
 
                 const cost = calculateCost(res.usage, ConfigManager.getConfig().model);
-                if (cost.usd > 0) {
-                    addCumulativeCost(ConfigManager.getConfig().model, cost.usd);
-                    const c = ConfigManager.getConfig(); c.recentUsageStr = cost.str; ConfigManager.setConfig(c);
-                }
+                if (cost.usd > 0) { addCumulativeCost(ConfigManager.getConfig().model, cost.usd); const c = ConfigManager.getConfig(); c.recentUsageStr = cost.str; ConfigManager.setConfig(c); }
                 tBtn.style.display = 'none'; ctrlGrp.style.display = 'flex';
             } catch(e) { alert("번역 실패: " + e.message); }
             finally {
@@ -537,31 +687,21 @@
             }
         };
 
-        tBtn.onclick = () => doTranslate(getEditorText());
-        rBtn.onclick = () => { if(originalText) doTranslate(originalText, true); };
+        tBtn.onclick = () => doTranslate(getEditorText()); rBtn.onclick = () => { if(originalText) doTranslate(originalText, true); };
         document.getElementById('cm-undo-btn').onclick = () => { if(originalText) { setEditorText(originalText); originalText = null; ctrlGrp.style.display = 'none'; tBtn.style.display = 'flex'; } };
 
         const editorBox = document.querySelector('.__chat_input_textarea');
-        if (editorBox) {
-            editorBox.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter' && !e.shiftKey) { originalText = null; ctrlGrp.style.display = 'none'; tBtn.style.display = 'flex'; }
-            });
-        }
+        if (editorBox) editorBox.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { originalText = null; ctrlGrp.style.display = 'none'; tBtn.style.display = 'flex'; } });
         const sendBtn = Array.from(document.querySelectorAll('button')).find(b => b.innerHTML.includes('d="M18.77 11.13'));
         if (sendBtn) sendBtn.addEventListener('click', () => { originalText = null; ctrlGrp.style.display = 'none'; tBtn.style.display = 'flex'; });
     }
 
-    // ==========================================
-    // 6. 설정 버튼 주입 및 옵저버
-    // ==========================================
     function injectSettingsButton() {
         const menuContainer = document.querySelector('.py-4.overflow-y-auto.scrollbar > .px-2:first-of-type');
         if (menuContainer && !document.getElementById('crack-input-trans-settings')) {
-            const btn = document.createElement('div');
-            btn.id = 'crack-input-trans-settings'; btn.className = 'px-2.5 h-4 box-content py-[18px]';
+            const btn = document.createElement('div'); btn.id = 'crack-input-trans-settings'; btn.className = 'px-2.5 h-4 box-content py-[18px]';
             btn.innerHTML = `<button class="w-full flex h-4 items-center justify-between typo-110-16-med space-x-2 ring-offset-4" style="cursor: pointer;"><span class="flex space-x-2 items-center"><span style="font-size: 16px;">🌍</span><span class="whitespace-nowrap overflow-hidden text-ellipsis typo-text-sm_leading-none_medium">입력 번역기 설정</span></span></button>`;
-            btn.onclick = showSettingsModal;
-            menuContainer.appendChild(btn);
+            btn.onclick = showSettingsModal; menuContainer.appendChild(btn);
         }
     }
 
