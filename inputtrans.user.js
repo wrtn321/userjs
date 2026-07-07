@@ -1,10 +1,12 @@
 // ==UserScript==
 // @name         🌍 crack input translator
 // @namespace    http://tampermonkey.net/
-// @version      1.1
+// @version      1.2
 // @description  유저의 입력을 원하는 언어로 번역
 // @author       뤼붕이
 // @match        https://crack.wrtn.ai/*
+// @downloadURL  https://raw.githubusercontent.com/wrtn321/userjs/main/inputtrans.user.js
+// @updateURL    https://raw.githubusercontent.com/wrtn321/userjs/main/inputtrans.user.js
 // @grant        GM_xmlhttpRequest
 // @connect      generativelanguage.googleapis.com
 // @connect      api.deepseek.com
@@ -457,7 +459,7 @@ function calculateCost(usage, modelOverride) {
                         <div style="display:flex; gap:10px; margin-bottom:15px;">
                             <div style="flex:1;">
                                 <label style="display:block;font-size:12px;font-weight:bold;color:#4b5563;margin-bottom:6px;">제공자 (Provider)</label>
-                                <select id="t-provider" style="width:100%;padding:10px;border-radius:8px;border:1px solid #d1d5db;font-size:13px;background:#f9fafb;outline:none;">
+                                <select id="t-provider" style="width:100%;padding:10px;border-radius:8px;border:1px solid #4b5563;font-size:13px;background:#374151;color:#ffffff;outline:none;">
                                     <option value="google" ${config.provider==='google'?'selected':''}>Google API</option>
                                     <option value="firebase" ${config.provider==='firebase'?'selected':''}>Firebase Vertex</option>
                                     <option value="deepseek" ${config.provider==='deepseek'?'selected':''}>DeepSeek API</option>
@@ -465,7 +467,7 @@ function calculateCost(usage, modelOverride) {
                             </div>
                             <div style="flex:1;">
                                 <label style="display:block;font-size:12px;font-weight:bold;color:#4b5563;margin-bottom:6px;">사용 모델</label>
-                                <select id="t-model" style="width:100%;padding:10px;border-radius:8px;border:1px solid #d1d5db;font-size:13px;background:#f9fafb;outline:none;"></select>
+                                <select id="t-model" style="width:100%;padding:10px;border-radius:8px;border:1px solid #4b5563;font-size:13px;background:#374151;color:#ffffff;outline:none;"></select>
                             </div>
                         </div>
 
@@ -508,27 +510,27 @@ function calculateCost(usage, modelOverride) {
                     <div class="t-tab-content" id="tab-preset" style="display:none;height:100%;flex-direction:column;">
                         <button id="t-add-prompt" style="width:100%;padding:10px;background:#f3f4f6;color:#111827;border:1px dashed #d1d5db;border-radius:8px;cursor:pointer;font-weight:bold;font-size:13px;margin-bottom:15px;">+ 새 프리셋 추가</button>
                         <div style="display:flex;gap:10px;margin-bottom:10px;">
-                            <select id="t-prompt-sel" style="flex:1;padding:8px;border-radius:6px;border:1px solid #d1d5db;font-size:13px;outline:none;background:#f9fafb;"></select>
+                            <select id="t-prompt-sel" style="flex:1;padding:8px;border-radius:6px;border:1px solid #4b5563;font-size:13px;outline:none;background:#374151;color:#ffffff;"></select>
                             <button id="t-del-prompt" style="padding:8px 12px;background:#fef2f2;color:#ef4444;border:1px solid #fca5a5;border-radius:6px;cursor:pointer;font-size:12px;font-weight:bold;">삭제</button>
                         </div>
-                        <input id="t-prompt-name" type="text" placeholder="프리셋 이름" style="width:100%;padding:10px;border-radius:8px;border:1px solid #d1d5db;font-weight:bold;font-size:13px;margin-bottom:10px;box-sizing:border-box;">
-                        <textarea id="t-prompt-content" placeholder="프롬프트 내용..." style="flex:1;width:100%;padding:12px;border-radius:8px;border:1px solid #d1d5db;resize:none;font-family:inherit;font-size:13px;line-height:1.5;box-sizing:border-box;"></textarea>
-                    </div>
+<input id="t-prompt-name" type="text" placeholder="프리셋 이름" style="width:100%;padding:10px;border-radius:8px;border:1px solid #4b5563;font-weight:bold;font-size:13px;margin-bottom:10px;box-sizing:border-box;background:#374151;color:#ffffff;">
+                        <textarea id="t-prompt-content" placeholder="프롬프트 내용..." style="flex:1;width:100%;padding:12px;border-radius:8px;border:1px solid #4b5563;resize:none;font-family:inherit;font-size:13px;line-height:1.5;box-sizing:border-box;background:#374151;color:#ffffff;"></textarea>
+                        </div>
 
                     <!-- API 키 탭 -->
                     <div class="t-tab-content" id="tab-apikey" style="display:none;">
                         <div style="margin-bottom:15px;">
                             <label style="display:block;font-size:12px;font-weight:bold;color:#4b5563;margin-bottom:6px;">Google Gemini API Key</label>
-                            <input id="t-gemini-key" type="text" placeholder="AIza..." value="${config.geminiKey}" style="width:100%;padding:10px;border-radius:8px;border:1px solid #d1d5db;font-size:13px;background:#f9fafb;box-sizing:border-box;">
-                        </div>
+                            <input id="t-gemini-key" type="text" placeholder="AIza..." value="${config.geminiKey}" style="width:100%;padding:10px;border-radius:8px;border:1px solid #4b5563;font-size:13px;background:#374151;color:#ffffff;box-sizing:border-box;">
+                            </div>
                         <div style="margin-bottom:15px;">
                             <label style="display:block;font-size:12px;font-weight:bold;color:#4b5563;margin-bottom:6px;">Firebase Config</label>
-                            <textarea id="t-fb-config" rows="4" placeholder="const firebaseConfig = { ... };" style="width:100%;padding:10px;border-radius:8px;border:1px solid #d1d5db;font-family:monospace;font-size:11px;background:#f9fafb;box-sizing:border-box;resize:vertical;">${config.fbConfig}</textarea>
-                        </div>
+                            <textarea id="t-fb-config" rows="4" placeholder="const firebaseConfig = { ... };" style="width:100%;padding:10px;border-radius:8px;border:1px solid #4b5563;font-family:monospace;font-size:11px;background:#374151;color:#ffffff;box-sizing:border-box;resize:vertical;">${config.fbConfig}</textarea>
+                            </div>
                         <div style="margin-bottom:15px;">
                             <label style="display:block;font-size:12px;font-weight:bold;color:#4b5563;margin-bottom:6px;">DeepSeek API Key</label>
-                            <input id="t-ds-key" type="text" placeholder="sk-..." value="${config.deepseekKey}" style="width:100%;padding:10px;border-radius:8px;border:1px solid #d1d5db;font-size:13px;background:#f9fafb;box-sizing:border-box;">
-                        </div>
+                            <input id="t-ds-key" type="text" placeholder="sk-..." value="${config.deepseekKey}" style="width:100%;padding:10px;border-radius:8px;border:1px solid #4b5563;font-size:13px;background:#374151;color:#ffffff;box-sizing:border-box;">
+                            </div>
                         <p style="font-size:11px;color:#6b7280;">* 로직 탭에서 선택한 '제공자(Provider)'의 키가 번역 시 사용됩니다.</p>
                     </div>
 
@@ -587,11 +589,11 @@ function calculateCost(usage, modelOverride) {
 
             let html = "";
             if (md === 'gemini-2.5-pro') {
-                html = `<label style="display:block;font-size:12px;font-weight:bold;color:#4b5563;margin-bottom:6px;">추론 예산 (Budget: 최소 128)</label><input type="text" id="t-gem-budget" value="${config.geminiBudget}" style="width:100%;padding:8px;border-radius:6px;border:1px solid #d1d5db;box-sizing:border-box;">`;
+                html = `<label style="display:block;font-size:12px;font-weight:bold;color:#4b5563;margin-bottom:6px;">추론 예산 (Budget: 최소 128)</label><input type="text" id="t-gem-budget" value="${config.geminiBudget}" style="width:100%;padding:8px;border-radius:6px;border:1px solid #4b5563;background:#374151;color:#ffffff;box-sizing:border-box;">`;
             } else if (md === 'gemini-3.1-pro-preview') {
-                html = `<label style="display:block;font-size:12px;font-weight:bold;color:#4b5563;margin-bottom:6px;">추론 정도</label><select id="t-gem-31" style="width:100%;padding:8px;border-radius:6px;border:1px solid #d1d5db;"><option value="low" ${config.geminiLevel3_1==='low'?'selected':''}>Low</option><option value="medium" ${config.geminiLevel3_1==='medium'?'selected':''}>Medium</option><option value="high" ${config.geminiLevel3_1==='high'?'selected':''}>High</option></select>`;
+                html = `<label style="display:block;font-size:12px;font-weight:bold;color:#4b5563;margin-bottom:6px;">추론 정도</label><select id="t-gem-31" style="width:100%;padding:8px;border-radius:6px;border:1px solid #4b5563;background:#374151;color:#ffffff;"><option value="low" ${config.geminiLevel3_1==='low'?'selected':''}>Low</option><option value="medium" ${config.geminiLevel3_1==='medium'?'selected':''}>Medium</option><option value="high" ${config.geminiLevel3_1==='high'?'selected':''}>High</option></select>`;
             } else if (md.includes('gemini-3')) {
-                html = `<label style="display:block;font-size:12px;font-weight:bold;color:#4b5563;margin-bottom:6px;">추론 정도</label><select id="t-gem-3x" style="width:100%;padding:8px;border-radius:6px;border:1px solid #d1d5db;"><option value="minimal" ${config.geminiLevel3_x==='minimal'?'selected':''}>Minimal</option><option value="low" ${config.geminiLevel3_x==='low'?'selected':''}>Low</option><option value="medium" ${config.geminiLevel3_x==='medium'?'selected':''}>Medium</option><option value="high" ${config.geminiLevel3_x==='high'?'selected':''}>High</option></select>`;
+                html = `<label style="display:block;font-size:12px;font-weight:bold;color:#4b5563;margin-bottom:6px;">추론 정도</label><select id="t-gem-3x" style="width:100%;padding:8px;border-radius:6px;border:1px solid #4b5563;background:#374151;color:#ffffff;"><option value="minimal" ${config.geminiLevel3_x==='minimal'?'selected':''}>Minimal</option><option value="low" ${config.geminiLevel3_x==='low'?'selected':''}>Low</option><option value="medium" ${config.geminiLevel3_x==='medium'?'selected':''}>Medium</option><option value="high" ${config.geminiLevel3_x==='high'?'selected':''}>High</option></select>`;
             } else if (md.includes('deepseek')) {
                 html = `
                     <label style="font-size:13px;cursor:pointer;display:flex;align-items:center;gap:6px;margin-bottom:10px;">
