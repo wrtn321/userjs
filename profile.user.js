@@ -1,12 +1,13 @@
 // ==UserScript==
 // @name         👤 뤼튼 개별 대화프로필
 // @namespace    http://tampermonkey.net/
-// @version      1.1
+// @version      1.2
 // @description  crack의 맨 마지막 대화프로필을 이용하여 방 개별 대화프로필 설정
 // @author       뤼붕이
 // @match        https://crack.wrtn.ai/*
 // @downloadURL  https://raw.githubusercontent.com/wrtn321/userjs/main/profile.user.js
 // @updateURL    https://raw.githubusercontent.com/wrtn321/userjs/main/profile.user.js
+// @require      https://cdnjs.cloudflare.com/ajax/libs/lz-string/1.5.0/lz-string.min.js
 // @grant        none
 // ==/UserScript==
 
@@ -172,12 +173,22 @@
         }
     }
 
-    let lastRoomId = null;
+let lastRoomId = null;
     function checkUrlChange() {
         const currentRoomId = getChatroomId();
         if (currentRoomId && currentRoomId !== lastRoomId) {
             lastRoomId = currentRoomId;
-            refreshSidebarCache().then(() => syncRoomProfile(currentRoomId));
+
+            const data = JSON.parse(localStorage.getItem("wrtn_room_profiles") || "{}");
+            const roomData = data[currentRoomId];
+
+            // [버그 수정됨] 방 이동 시 로컬에 저장된 켜진 프로필이 있다면, 즉시 사이드바 이름부터 변경!
+            if (roomData && roomData.isActive !== false) {
+                lockSidebarAndRefresh(currentRoomId, roomData.name, true);
+                syncRoomProfile(currentRoomId);
+            } else {
+                refreshSidebarCache().then(() => syncRoomProfile(currentRoomId));
+            }
         }
     }
 
@@ -279,9 +290,75 @@
     // ===================================================================================
     // UI
     // ===================================================================================
-    function injectProfileEditor() {
+function injectProfileEditor() {
         const modalHeader = document.querySelector('div[role="dialog"] h2');
         if (!modalHeader || modalHeader.textContent !== '대화 프로필') return;
+
+        // =========================================================================
+        //  백업/복구 버튼 추가
+        // =========================================================================
+        if (!document.getElementById('jit-backup-btn')) {
+            const headerContainer = modalHeader.parentElement;
+            const closeBtn = headerContainer.querySelector('button[aria-label="닫기"]');
+
+            const btnWrapper = document.createElement('div');
+            btnWrapper.style.cssText = "display: flex; gap: 8px; margin-left: auto; margin-right: 12px;";
+
+            const backupBtn = document.createElement('button');
+            backupBtn.id = 'jit-backup-btn';
+            backupBtn.title = "데이터 백업 (클립보드 복사)";
+            backupBtn.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>`;
+            backupBtn.style.cssText = "cursor: pointer; padding: 4px; border-radius: 4px; transition: background 0.2s;";
+            backupBtn.onmouseover = () => backupBtn.style.background = 'rgba(59, 130, 246, 0.15)';
+            backupBtn.onmouseout = () => backupBtn.style.background = 'none';
+            backupBtn.onclick = () => {
+                const data = {
+                    profiles: JSON.parse(localStorage.getItem("wrtn_room_profiles") || "{}"),
+                    presets: JSON.parse(localStorage.getItem("wrtn_local_presets") || "[]")
+                };
+
+                const encoded = LZString.compressToBase64(JSON.stringify(data));
+
+                navigator.clipboard.writeText(encoded).then(() => {
+                    alert("✅ 압축된 백업 코드가 클립보드에 복사되었습니다!\n다른 기기나 브라우저에서 '복원' 버튼을 눌러 붙여넣으세요.");
+                });
+            };
+
+            const restoreBtn = document.createElement('button');
+            restoreBtn.id = 'jit-restore-btn';
+            restoreBtn.title = "데이터 복원 (클립보드에서 붙여넣기)";
+            restoreBtn.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>`;
+            restoreBtn.style.cssText = "cursor: pointer; padding: 4px; border-radius: 4px; transition: background 0.2s;";
+            restoreBtn.onmouseover = () => restoreBtn.style.background = 'rgba(59, 130, 246, 0.15)';
+            restoreBtn.onmouseout = () => restoreBtn.style.background = 'none';
+
+            restoreBtn.onclick = () => {
+                const input = prompt("📥 복사해둔 압축 백업 코드를 아래에 붙여넣어주세요.");
+                if (!input) return;
+                try {
+                    const decompressed = LZString.decompressFromBase64(input);
+                    if (!decompressed) throw new Error("압축 해제 실패");
+
+                    const decoded = JSON.parse(decompressed);
+                    if (decoded.profiles || decoded.presets) {
+                        if(decoded.profiles) localStorage.setItem("wrtn_room_profiles", JSON.stringify(decoded.profiles));
+                        if(decoded.presets) localStorage.setItem("wrtn_local_presets", JSON.stringify(decoded.presets));
+                        alert("✅ 성공적으로 덮어씌워졌습니다! 정상 적용을 위해 페이지를 새로고침합니다.");
+                        location.reload();
+                    } else { throw new Error(); }
+                } catch(e) {
+                    alert("❌ 잘못된 형식의 백업 코드입니다. 복사한 내용이 맞는지 다시 확인해주세요.");
+                }
+            };
+
+            btnWrapper.appendChild(backupBtn);
+            btnWrapper.appendChild(restoreBtn);
+
+            // X 닫기 버튼 바로 왼쪽에 요소 밀어넣기
+            if (closeBtn) {
+                headerContainer.insertBefore(btnWrapper, closeBtn);
+            }
+        }
 
         const listContainer = document.querySelector('div[role="dialog"] .overflow-y-scroll > div > .flex-col.gap-4');
         if (!listContainer) return;
